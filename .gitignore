@@ -1,0 +1,11 @@
+*.o
+*.d
+*.so
+*.swo
+*.swp
+*.tmp
+*.log
+*.pid
+/.vscode/
+/gwhf
+/main
