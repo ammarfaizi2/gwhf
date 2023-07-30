@@ -78,6 +78,11 @@ struct gwhf_res_hdr {
 	 * Number of elements in @fields.
 	 */
 	uint16_t			nr_fields;
+
+	/*
+	 * Total required length to construct the response header.
+	 */
+	uint32_t			total_req_len;
 };
 
 struct gwhf_req_hdr {
@@ -106,6 +111,8 @@ struct gwhf_req_hdr {
 	int64_t				content_length;
 };
 
+struct gwhf;
+
 static inline char *gwhf_req_hdr_get_method(struct gwhf_req_hdr *hdr)
 {
 	return hdr->buf + hdr->off_method;
@@ -129,8 +136,77 @@ static inline char *gwhf_req_hdr_get_version(struct gwhf_req_hdr *hdr)
 	return hdr->buf + hdr->off_version;
 }
 
+
 GWHF_EXPORT char *gwhf_req_hdr_get_field(struct gwhf_req_hdr *hdr,
 					 const char *key);
+
+GWHF_EXPORT int gwhf_res_hdr_add_field(struct gwhf_res_hdr *hdr,
+				       const char *key,
+				       const char *fmtval, ...);
+
+static inline void gwhf_res_hdr_set_status_code(struct gwhf_res_hdr *hdr,
+						int16_t status_code)
+{
+	hdr->status_code = status_code;
+}
+
+static inline int gwhf_res_hdr_set_content_length(struct gwhf_res_hdr *hdr,
+						  int64_t content_length)
+{
+	return gwhf_res_hdr_add_field(hdr, "Content-Length", "%lld",
+				      (long long)content_length);
+}
+
+static inline int gwhf_res_hdr_set_content_type(struct gwhf_res_hdr *hdr,
+						const char *content_type)
+{
+	return gwhf_res_hdr_add_field(hdr, "Content-Type", "%s", content_type);
+}
+
+struct gwhf_client;
+
+GWHF_EXPORT int gwhf_res_body_set_fd(struct gwhf_client *cl, int fd,
+				     uint64_t len);
+
+GWHF_EXPORT int gwhf_res_body_set_ref_fd(struct gwhf_client *cl, int fd,
+					 uint64_t len);
+
+GWHF_EXPORT int gwhf_res_body_add_buf(struct gwhf_client *cl, const void *buf,
+				      uint64_t len);
+
+GWHF_EXPORT int gwhf_res_body_set_ref_buf(struct gwhf_client *cl,
+					  const void *buf, uint64_t len);
+
+enum {
+	GWHF_RES_BODY_TYPE_NONE    = 0,
+	GWHF_RES_BODY_TYPE_FD      = 1,
+	GWHF_RES_BODY_TYPE_REF_FD  = 2,
+	GWHF_RES_BODY_TYPE_BUF     = 3,
+	GWHF_RES_BODY_TYPE_REF_BUF = 4,
+};
+
+struct gwhf_res_body_fd {
+	int		fd;
+	uint64_t	len;
+};
+
+struct gwhf_res_body_buf {
+	void		*buf;
+	uint64_t	len;
+};
+
+struct gwhf_res_body {
+	uint8_t		type;
+	void		(*callback_done)(void *arg);
+	void		*arg;
+
+	union {
+		struct gwhf_res_body_fd		fd;
+		struct gwhf_res_body_fd		ref_fd;
+		struct gwhf_res_body_buf	buf;
+		struct gwhf_res_body_buf	ref_buf;
+	};
+};
 
 /*
  * struct sockaddr_gwhf represents an IPv4 or IPv6 address.
@@ -214,6 +290,7 @@ struct gwhf_client {
 
 	struct gwhf_req_hdr	req_hdr;
 	struct gwhf_res_hdr	res_hdr;
+	struct gwhf_res_body	res_body;
 
 	/*
 	 * The last activity time. Used to check for timeout.
@@ -315,6 +392,11 @@ static inline long PTR_ERR(const void *ptr)
 static inline bool IS_ERR(const void *ptr)
 {
 	return (unsigned long)ptr > (unsigned long)-4096ul;
+}
+
+static inline void gwhf_set_stop(struct gwhf *ctx)
+{
+	ctx->stop = true;
 }
 
 #ifdef __cplusplus

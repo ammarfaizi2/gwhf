@@ -12,11 +12,28 @@
 #include <string.h>
 #include <stdio.h>
 
+static void set_end_of_resp(struct gwhf_client *cl)
+{
+	cl->state = T_CLST_END_OF_RESP;
+	cl->req_buf_off = 0;
+}
+
 static bool is_eligible_for_keep_alive(struct gwhf_client *cl)
 {
 	struct gwhf_req_hdr *hdr = &cl->req_hdr;
 	char *val;
 
+	if (!cl->res_buf) {
+		/*
+		 * If the response buffer is NULL, then it means
+		 * that the sever has not sent any response.
+		 *
+		 * Don't allow keep-alive.
+		 */
+		return false;
+	}
+
+	assert(cl->state == T_CLST_ROUTE_BODY);
 	val = gwhf_req_hdr_get_field(hdr, "connection");
 	if (val) {
 		/*
@@ -32,7 +49,7 @@ static bool is_eligible_for_keep_alive(struct gwhf_client *cl)
 	 * we need to check whether the HTTP version is 1.1.
 	 * If it is, then it is eligible for keep-alive.
 	 */
-	val = &hdr->buf[hdr->off_version];
+	val = gwhf_req_hdr_get_version(hdr);
 	return !strcmp(val, "HTTP/1.1");
 }
 
@@ -60,6 +77,7 @@ static int iterate_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 		}
 	}
 
+	set_end_of_resp(cl);
 	return 0;
 }
 
@@ -87,6 +105,7 @@ static int iterate_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 		}
 	}
 
+	set_end_of_resp(cl);
 	return 0;
 }
 
@@ -235,6 +254,7 @@ static int process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
 	case T_CLST_ROUTE_BODY:
 	case T_CLST_SEND_HEADER:
 	case T_CLST_SEND_BODY:
+	case T_CLST_END_OF_RESP:
 	default:
 		abort();
 	}
@@ -254,8 +274,13 @@ int gwhf_process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
 			break;
 	}
 
-	if (!ret && is_eligible_for_keep_alive(cl)) {
-		gwhf_soft_reset_client(cl);
+	if (!ret) {
+		if (is_eligible_for_keep_alive(cl)) {
+			gwhf_soft_reset_client(cl);
+			assert(cl->state == T_CLST_IDLE);
+			return 0;
+		}
+
 		return 0;
 	}
 

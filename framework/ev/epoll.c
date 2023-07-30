@@ -173,7 +173,14 @@ static int handle_event_recv(struct gwhf *ctx, struct gwhf_client *cl)
 		return ret;
 	}
 
-	return gwhf_process_recv_buffer(ctx, cl);
+	ret = gwhf_process_recv_buffer(ctx, cl);
+	if (unlikely(ret < 0))
+		return ret;
+
+	if (cl->state == T_CLST_END_OF_RESP)
+		return 1;
+
+	return 0;
 }
 
 static int handle_event_send(struct gwhf *ctx, struct gwhf_client *cl)

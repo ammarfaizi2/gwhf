@@ -54,6 +54,7 @@ enum {
 	T_CLST_ROUTE_BODY   = 5,
 	T_CLST_SEND_HEADER  = 6,
 	T_CLST_SEND_BODY    = 7,
+	T_CLST_END_OF_RESP  = 8,
 };
 
 struct gwhf_route_header {

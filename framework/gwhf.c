@@ -69,6 +69,7 @@ void gwhf_soft_reset_client(struct gwhf_client *cl)
 	cl->res_buf_off = 0;
 	gwhf_destroy_req_hdr(&cl->req_hdr);
 	gwhf_destroy_res_hdr(&cl->res_hdr);
+	gwhf_destroy_res_body(&cl->res_body);
 	cl->total_req_body_recv = 0;
 
 	assert(cl->state != T_CLST_IDLE);
@@ -90,6 +91,7 @@ void gwhf_reset_client(struct gwhf_client *cl)
 	gwhf_destroy_client_res_buf(cl);
 	gwhf_destroy_req_hdr(&cl->req_hdr);
 	gwhf_destroy_res_hdr(&cl->res_hdr);
+	gwhf_destroy_res_body(&cl->res_body);
 	cl->total_req_body_recv = 0;
 	cl->state = T_CLST_CLOSED;
 }
