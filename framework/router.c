@@ -6,6 +6,7 @@
 
 #include "internal.h"
 #include "http/request.h"
+#include "http/response.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -53,6 +54,38 @@ static bool is_eligible_for_keep_alive(struct gwhf_client *cl)
 	return !strcmp(val, "HTTP/1.1");
 }
 
+static int gen_iterate_result(struct gwhf *ctx, struct gwhf_client *cl, int res)
+{
+	int ret = 0;
+
+	switch (res) {
+	case GWHF_ROUTE_EXECUTED:
+		ret = gwhf_construct_res_buf(cl);
+		if (ret < 0) {
+			set_end_of_resp(cl);
+			return ret;
+		}
+
+		cl->state = T_CLST_SEND_HEADER;
+		ret = -EAGAIN;
+		break;
+	case GWHF_ROUTE_NOT_FOUND:
+		/*
+		 * TODO(ammarfaizi2): Add default 404 page.
+		 */
+		break;
+	case GWHF_ROUTE_CONTINUE:
+		break;
+	case GWHF_ROUTE_ERROR:
+		/*
+		 * TODO(ammarfaizi2): Add default 404 page.
+		 */
+		break;
+	}
+
+	return ret;
+}
+
 static int iterate_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
@@ -64,20 +97,11 @@ static int iterate_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 
 		hdr = &it->route_header[i];
 		ret = hdr->exec_cb(ctx, cl);
-		switch (ret) {
-		case GWHF_ROUTE_EXECUTED:
-			return 0;
-		case GWHF_ROUTE_NOT_FOUND:
-			/*
-			 * TODO(ammarfaizi2): Add default 404 page.
-			 */
-			return 0;
-		case GWHF_ROUTE_CONTINUE:
-			break;
-		}
+		ret = gen_iterate_result(ctx, cl, ret);
+		if (ret)
+			return ret;
 	}
 
-	set_end_of_resp(cl);
 	return 0;
 }
 
@@ -92,17 +116,9 @@ static int iterate_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 
 		body = &it->route_body[i];
 		ret = body->exec_cb(ctx, cl);
-		switch (ret) {
-		case GWHF_ROUTE_EXECUTED:
-			return 0;
-		case GWHF_ROUTE_NOT_FOUND:
-			/*
-			 * TODO(ammarfaizi2): Add default 404 page.
-			 */
-			return 0;
-		case GWHF_ROUTE_CONTINUE:
-			break;
-		}
+		ret = gen_iterate_result(ctx, cl, ret);
+		if (ret)
+			return ret;
 	}
 
 	set_end_of_resp(cl);
@@ -220,6 +236,9 @@ static int process_recv_header(struct gwhf *ctx, struct gwhf_client *cl)
 	ret = gwhf_exec_route_header(ctx, cl);
 	if (unlikely(ret < 0))
 		return ret;
+
+	if (cl->state == T_CLST_CLOSED)
+		return 0;
 
 	if (cl->req_buf_off > hdr_len) {
 		/*

@@ -31,6 +31,7 @@ extern "C" {
 #include <pthread.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <string.h>
 
 struct stack16 {
 	uint16_t	*data;
@@ -177,6 +178,12 @@ GWHF_EXPORT int gwhf_res_body_add_buf(struct gwhf_client *cl, const void *buf,
 GWHF_EXPORT int gwhf_res_body_set_ref_buf(struct gwhf_client *cl,
 					  const void *buf, uint64_t len);
 
+static inline int gwhf_res_body_add_buf_str(struct gwhf_client *cl,
+					    const char *str)
+{
+	return gwhf_res_body_add_buf(cl, str, strlen(str));
+}
+
 enum {
 	GWHF_RES_BODY_TYPE_NONE    = 0,
 	GWHF_RES_BODY_TYPE_FD      = 1,
@@ -199,6 +206,7 @@ struct gwhf_res_body {
 	uint8_t		type;
 	void		(*callback_done)(void *arg);
 	void		*arg;
+	uint64_t	off;
 
 	union {
 		struct gwhf_res_body_fd		fd;
@@ -377,6 +385,7 @@ enum {
 	GWHF_ROUTE_EXECUTED  = 1,
 	GWHF_ROUTE_NOT_FOUND = 2,
 	GWHF_ROUTE_CONTINUE  = 3,
+	GWHF_ROUTE_ERROR     = 4,
 };
 
 static inline void *ERR_PTR(long err)

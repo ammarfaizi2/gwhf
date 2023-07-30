@@ -12,6 +12,159 @@
 #include <unistd.h>
 #include <stdio.h>
 
+static const char *http_code_to_str(int code)
+{
+	switch (code) {
+	case 200:
+		return "OK";
+	case 201:
+		return "Created";
+	case 202:
+		return "Accepted";
+	case 203:
+		return "Non-Authoritative Information";
+	case 204:
+		return "No Content";
+	case 205:
+		return "Reset Content";
+	case 206:
+		return "Partial Content";
+	case 301:
+		return "Moved Permanently";
+	case 302:
+		return "Found";
+	case 303:
+		return "See Other";
+	case 304:
+		return "Not Modified";
+	case 307:
+		return "Temporary Redirect";
+	case 308:
+		return "Permanent Redirect";
+	case 400:
+		return "Bad Request";
+	case 401:
+		return "Unauthorized";
+	case 403:
+		return "Forbidden";
+	case 404:
+		return "Not Found";
+	case 500:
+		return "Internal Server Error";
+	case 501:
+		return "Not Implemented";
+	case 503:
+		return "Service Unavailable";
+	default:
+		return "";
+	}
+}
+
+static uint64_t compute_total_res_body_len(struct gwhf_res_body *body)
+{
+	switch (body->type) {
+	case GWHF_RES_BODY_TYPE_NONE:
+		return 0;
+	case GWHF_RES_BODY_TYPE_FD:
+		return body->fd.len;
+	case GWHF_RES_BODY_TYPE_REF_FD:
+		return body->fd.len;
+	case GWHF_RES_BODY_TYPE_BUF:
+		return body->buf.len;
+	case GWHF_RES_BODY_TYPE_REF_BUF:
+		return body->ref_buf.len;
+	}
+
+	abort();
+}
+
+static int copy_res_body_to_buf(struct gwhf_res_body *body, char *buf,
+				size_t len)
+{
+	ssize_t ret;
+
+	switch (body->type) {
+	case GWHF_RES_BODY_TYPE_NONE:
+		return 0;
+	case GWHF_RES_BODY_TYPE_FD:
+	case GWHF_RES_BODY_TYPE_REF_FD:
+		ret = pread64(body->fd.fd, buf, len, body->off);
+		if (unlikely(ret < 0))
+			return -errno;
+		body->off += (uint64_t)ret;
+		return 0;
+	case GWHF_RES_BODY_TYPE_BUF:
+		memcpy(buf, body->buf.buf, len);
+		body->off += (uint64_t)len;
+		return 0;
+	case GWHF_RES_BODY_TYPE_REF_BUF:
+		memcpy(buf, body->ref_buf.buf, len);
+		body->off += (uint64_t)len;
+		return 0;
+	}
+
+	abort();
+}
+
+int gwhf_construct_res_buf(struct gwhf_client *cl)
+{
+	struct gwhf_res_body *body = &cl->res_body;
+	struct gwhf_res_hdr *hdr = &cl->res_hdr;
+	const char *status_str;
+	size_t body_len;
+	size_t hdr_len;
+	size_t tot_len;
+	size_t len;
+	uint16_t i;
+	char *buf;
+	int err;
+
+	assert(cl->res_buf_off == 0);
+
+	status_str = http_code_to_str(hdr->status_code);
+
+	body_len = (size_t)compute_total_res_body_len(body);
+
+	hdr_len = (size_t)hdr->total_req_len;
+	hdr_len += sizeof("\r\n\r\n") - 1u;
+	hdr_len += snprintf(NULL, 0, "HTTP/1.1 %d %s\r\n", hdr->status_code,
+			    status_str);
+
+	if (unlikely(hdr_len > 65535u))
+		return -ENOMEM;
+
+	tot_len = hdr_len + body_len;
+	if (tot_len > 65535u*2u) {
+		tot_len = 65535u*2u;
+		body_len = tot_len - hdr_len;
+	}
+
+	buf = malloc(tot_len);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
+	len = snprintf(buf, tot_len, "HTTP/1.1 %d %s\r\n", hdr->status_code,
+		       status_str);
+
+	for (i = 0; i < hdr->nr_fields; i++) {
+		len += snprintf(buf + len, len, "%s: %s\r\n",
+				hdr->fields[i].key, hdr->fields[i].val);
+	}
+
+	buf[len++] = '\r';
+	buf[len++] = '\n';
+	err = copy_res_body_to_buf(body, buf + len, body_len);
+	if (unlikely(err < 0)) {
+		free(buf);
+		return err;
+	}
+
+	cl->res_buf = buf;
+	cl->res_buf_len = tot_len;
+	cl->res_buf_off = 0;
+	return 0;
+}
+
 int gwhf_res_body_add_buf(struct gwhf_client *cl, const void *buf, uint64_t len)
 {
 	struct gwhf_res_body *body = &cl->res_body;

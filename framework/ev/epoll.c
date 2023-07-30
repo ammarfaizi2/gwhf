@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
 
 static int poll_events(struct gwhf *ctx)
 {
@@ -137,7 +138,8 @@ static inline struct epoll_event *get_epv_from_cl(struct gwhf_client *cl)
 }
 
 enum {
-	RECV_GOT_DISCONNECTED = 1
+	RECV_GOT_DISCONNECTED = 1,
+	SEND_GOT_DISCONNECTED = 1,
 };
 
 static int do_recv(struct gwhf_client *cl)
@@ -180,11 +182,50 @@ static int handle_event_recv(struct gwhf *ctx, struct gwhf_client *cl)
 	if (cl->state == T_CLST_END_OF_RESP)
 		return 1;
 
+	if (cl->state == T_CLST_SEND_HEADER || cl->state == T_CLST_SEND_BODY) {
+		get_epv_from_cl(cl)->events |= EPOLLOUT;
+		return 0;
+	}
+
+	return 0;
+}
+
+static int do_send(struct gwhf_client *cl, const void *buf, uint16_t *len)
+{
+	ssize_t ret;
+
+	ret = send(cl->fd, buf, *len, MSG_DONTWAIT);
+	if (unlikely(ret < 0)) {
+		ret = -errno;
+		if (ret == -EAGAIN)
+			return 0;
+
+		return ret;
+	}
+
+	*len -= (uint16_t)ret;
 	return 0;
 }
 
 static int handle_event_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	int ret;
+
+	if (cl->state == T_CLST_SEND_HEADER) {
+		char *buf = cl->res_buf + cl->res_buf_off;
+		uint16_t len = cl->res_buf_len - cl->res_buf_off;
+
+		ret = do_send(cl, buf, &len);
+		if (unlikely(ret < 0))
+			return ret;
+
+		cl->res_buf_off = cl->res_buf_len - len;
+		if (cl->res_buf_off == 0)
+			cl->state = T_CLST_SEND_BODY;
+
+		return 0;
+	}
+
 	return 0;
 }
 

@@ -2,12 +2,26 @@
 #include <gwhf/gwhf.h>
 #include <stdio.h>
 
+static int handle_route_hello(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_res_hdr *hdr = &cl->res_hdr;
+	int ret;
+
+	ret = gwhf_res_body_add_buf(cl, "hello", 5);
+	if (ret)
+		return GWHF_ROUTE_ERROR;
+
+	gwhf_res_hdr_set_status_code(hdr, 200);
+	ret |= gwhf_res_hdr_set_content_type(hdr, "text/plain");
+	ret |= gwhf_res_hdr_set_content_length(hdr, 5);
+	if (ret)
+		return GWHF_ROUTE_ERROR;
+
+	return GWHF_ROUTE_EXECUTED;
+}
+
 static int handle_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	struct gwhf_req_hdr *hdr = &cl->req_hdr;
-	const char *uri;
-
-	uri = gwhf_req_hdr_get_uri(hdr);
 	return GWHF_ROUTE_EXECUTED;
 }
 
@@ -17,7 +31,11 @@ static int handle_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 	const char *uri;
 
 	uri = gwhf_req_hdr_get_uri(hdr);
-	return GWHF_ROUTE_EXECUTED;
+
+	if (!strcmp(uri, "/hello"))
+		return handle_route_hello(ctx, cl);
+
+	return GWHF_ROUTE_CONTINUE;
 }
 
 int main(void)
