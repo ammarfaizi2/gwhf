@@ -8,7 +8,6 @@ static int handle_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 	const char *uri;
 
 	uri = gwhf_req_hdr_get_uri(hdr);
-	printf("uri = %s\n", uri);
 	return GWHF_ROUTE_EXECUTED;
 }
 
@@ -18,7 +17,6 @@ static int handle_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 	const char *uri;
 
 	uri = gwhf_req_hdr_get_uri(hdr);
-	printf("uri = %s\n", uri);
 	return GWHF_ROUTE_EXECUTED;
 }
 

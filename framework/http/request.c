@@ -220,7 +220,7 @@ int gwhf_req_hdr_parse(const char *buf, struct gwhf_req_hdr *hdr)
 	if (unlikely(ret < 0))
 		goto err;
 
-	return (int)ret;
+	return (int)len;
 
 err:
 	free(hdr->buf);

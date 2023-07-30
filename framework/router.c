@@ -12,6 +12,30 @@
 #include <string.h>
 #include <stdio.h>
 
+static bool is_eligible_for_keep_alive(struct gwhf_client *cl)
+{
+	struct gwhf_req_hdr *hdr = &cl->req_hdr;
+	char *val;
+
+	val = gwhf_req_hdr_get_field(hdr, "connection");
+	if (val) {
+		/*
+		 * If the client sent a "Connection" header, then
+		 * we need to check whether the value is "keep-alive".
+		 * If it is, then it is eligible for keep-alive.
+		 */
+		return !strcasecmp(val, "keep-alive");
+	}
+
+	/*
+	 * If the client did not send a "Connection" header, then
+	 * we need to check whether the HTTP version is 1.1.
+	 * If it is, then it is eligible for keep-alive.
+	 */
+	val = &hdr->buf[hdr->off_version];
+	return !strcmp(val, "HTTP/1.1");
+}
+
 static int iterate_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
@@ -120,6 +144,8 @@ static int process_recv_body(struct gwhf *ctx, struct gwhf_client *cl)
 	assert(cl->state == T_CLST_RECV_BODY);
 	assert(hdr->content_length != GWHF_CONTENT_LENGTH_UNINITIALIZED);
 
+	cl->req_buf_off = 0;
+
 	if (hdr->content_length == GWHF_CONTENT_LENGTH_CHUNKED) {
 		/*
 		 * Currently we don't support chunked transfer encoding.
@@ -183,7 +209,6 @@ static int process_recv_header(struct gwhf *ctx, struct gwhf_client *cl)
 		 */
 		memmove(cl->req_buf, cl->req_buf + hdr_len, cl->req_buf_off - hdr_len);
 		cl->req_buf_off -= hdr_len;
-		cl->total_req_body_recv = (int64_t)cl->req_buf_off;
 	} else {
 		/*
 		 * Otherwise, we need to read more data.
@@ -227,6 +252,11 @@ int gwhf_process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
 		ret = process_recv_buffer(ctx, cl);
 		if (unlikely(ret < 0))
 			break;
+	}
+
+	if (!ret && is_eligible_for_keep_alive(cl)) {
+		gwhf_soft_reset_client(cl);
+		return 0;
 	}
 
 	/*
