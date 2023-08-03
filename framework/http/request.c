@@ -1,123 +1,148 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
- */
 
+#define NDEBUG
 #include "request.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
-#define GWHF_CLIENT_BUF_SIZE 8192
-
-char *gwhf_req_hdr_get_field(struct gwhf_req_hdr *hdr, const char *key)
+static int parse_method_uri_version_qs(char *buf, char **second_line,
+				       struct gwhf_http_req_hdr *hdr)
 {
-	char *ret = NULL;
-	uint16_t i;
-
-	for (i = 0; i < hdr->nr_fields; i++) {
-		struct gwhf_hdr_field_off *field;
-		char *fkkey;
-
-		field = &hdr->fields[i];
-		fkkey = hdr->buf + field->off_key;
-
-		if (strcasecmp(fkkey, key) == 0) {
-			ret = hdr->buf + field->off_val;
-			break;
-		}
-	}
-
-	return ret;
-}
-
-static int parse_method_uri_version_qs(struct gwhf_req_hdr *hdr,
-				       char **second_line)
-{
-	char *buf, *end, *ptr;
+	char *head, *tail;
 
 	assert(!hdr->off_method);
 	assert(!hdr->off_uri);
-	assert(!hdr->off_version);
 	assert(!hdr->off_qs);
+	assert(!hdr->off_version);
 
-	buf = hdr->buf;
-	ptr = strchr(buf, '\r');
-	ptr[0] = '\0';
-
-	if (ptr[1] != '\n')
-		return -EINVAL;
-
-	*second_line = &ptr[2];
+	head = buf;
 
 	/*
-	 * Extract the method.
+	 * Find the end of the first line (CR).
 	 */
-	hdr->off_method = 0u;
-	end = strchr(buf, ' ');
-	if (!end)
+	tail = strchr(head, '\r');
+	if (unlikely(!tail))
 		return -EINVAL;
-
-	*end++ = '\0';
 
 	/*
-	 * Extract the URI.
+	 * Kill the CR.
 	 */
-	hdr->off_uri = (uint32_t)(end - buf);
-	if (end[0] != '/')
-		return -EINVAL;
-
-	end = strchr(end, ' ');
-	if (!end)
-		return -EINVAL;
-
-	*end++ = '\0';
-
+	*tail++ = '\0';
 
 	/*
-	 * Extract the query string.
+	 * Make sure the LF is present after the CR.
 	 */
-	hdr->off_qs = -1;
-	ptr = strchr(&buf[hdr->off_uri], '?');
-	if (ptr) {
-		hdr->off_qs = (uint32_t)(ptr - buf + 1u);
-		*ptr++ = '\0';
+	if (unlikely(*tail++ != '\n'))
+		return -EINVAL;
+
+	/*
+	 * Save the offset of the second line.
+	 */
+	*second_line = tail;
+
+	/*
+	 * @hdr->off_method is already 0u at this point.
+	 *
+	 * Find the end of the method (space).
+	 */
+	tail = strchr(head, ' ');
+	if (unlikely(!tail))
+		return -EINVAL;
+
+	/*
+	 * If the method is empty, it's invalid.
+	 */
+	if (unlikely(tail == head))
+		return -EINVAL;
+
+	/*
+	 * Kill the space.
+	 */
+	*tail++ = '\0';
+
+	head = tail;
+
+	/*
+	 * The URI must start with a '/'.
+	 */
+	if (unlikely(head[0] != '/'))
+		return -EINVAL;
+
+	/*
+	 * Save the offset of the URI.
+	 */
+	hdr->off_uri = (uint32_t)(head - buf);
+
+	/*
+	 * Find the end of the URI (space).
+	 */
+	tail = strchr(head, ' ');
+	if (unlikely(!tail))
+		return -EINVAL;
+
+	/*
+	 * Validate the HTTP version pattern.
+	 * After the space, it must be "HTTP/".
+	 */
+	if (unlikely(strncmp(tail + 1, "HTTP/", 5u)))
+		return -EINVAL;
+
+	/*
+	 * Kill the space.
+	 */
+	*tail++ = '\0';
+
+	/*
+	 * Save the offset of the HTTP version.
+	 */
+	hdr->off_version = (uint32_t)(tail - buf);
+
+	/*
+	 * Try to find the query string (optional).
+	 */
+	head = &buf[hdr->off_uri];
+	tail = strchr(head, '?');
+	if (tail) {
+		/*
+		 * Kill the '?' and save the offset of the query string.
+		 */
+		*tail++ = '\0';
+		hdr->off_qs = (uint32_t)(tail - buf);
+	} else {
+		/*
+		 * No query string.
+		 */
+		hdr->off_qs = -1;
 	}
-
-	/*
-	 * Extract the HTTP version.
-	 */
-	hdr->off_version = (uint32_t)(end - buf);
-	if (strncmp(end, "HTTP/", 5u))
-		return -EINVAL;
 
 	return 0;
 }
 
-static int parse_hdr_req_fields(char *buf, struct gwhf_req_hdr *hdr)
+static int parse_hdr_req_fields(char *buf, struct gwhf_http_req_hdr *hdr)
 {
-	struct gwhf_hdr_field_off *tmp, *fields = NULL;
+	struct gwhf_http_hdr_field_off *fields;
 	uint16_t nr_fields = 0u;
 	uint16_t nr_alloc = 16u; /* Don't realloc() too often. */
 	char *ptr, *end;
 	int err;
 
-	assert(!hdr->fields);
-	assert(!hdr->nr_fields);
-	assert(hdr->content_length == GWHF_CONTENT_LENGTH_UNINITIALIZED);
+	assert(!hdr->hdr_fields);
+	assert(!hdr->nr_hdr_fields);
+	assert(hdr->content_length == GWHF_HTTP_CONLEN_UNINITIALIZED);
 
+	hdr->content_length = GWHF_HTTP_CONLEN_NONE;
 	ptr = buf;
-	if (!ptr[0])
+	if (unlikely(!ptr[0]))
 		return 0;
 
 	fields = malloc(nr_alloc * sizeof(*fields));
-	if (!fields)
+	if (unlikely(!fields))
 		return -ENOMEM;
 
-	hdr->content_length = GWHF_CONTENT_LENGTH_NOT_PRESENT;
 	err = -EINVAL;
 	while (ptr[0]) {
+		struct gwhf_http_hdr_field_off *tmp;
 		char *key, *val;
 
 		if (ptr[0] == '\r' && ptr[1] == '\n')
@@ -125,10 +150,10 @@ static int parse_hdr_req_fields(char *buf, struct gwhf_req_hdr *hdr)
 
 		nr_fields++;
 
-		if (nr_fields > nr_alloc) {
+		if (unlikely(nr_fields > nr_alloc)) {
 			nr_alloc *= 2;
 			tmp = realloc(fields, nr_alloc * sizeof(*fields));
-			if (!tmp) {
+			if (unlikely(!tmp)) {
 				err = -ENOMEM;
 				goto out_err;
 			}
@@ -136,43 +161,62 @@ static int parse_hdr_req_fields(char *buf, struct gwhf_req_hdr *hdr)
 		}
 
 		tmp = &fields[nr_fields - 1];
-		tmp->off_key = (uint16_t)(ptr - hdr->buf);
 
+		/*
+		 * Find the key and value separator (':').
+		 */
 		end = strchr(ptr, ':');
-		if (!end)
+		if (unlikely(!end))
 			goto out_err;
 
-		key = strtolower(ptr);
+		/*
+		 * Kill the colon separator (':').
+		 */
 		*end++ = '\0';
-		tmp->off_val = (uint16_t)(end - hdr->buf + 1u);
 
+		/*
+		 * Save the key offset and make the key lowercase.
+		 */
+		key = strtolower(ptr);
+
+		/*
+		 * Skip the trailing whitespace(s) after the colon separator.
+		 */
+		while (*end == ' ')
+			end++;
+
+		/*
+		 * Save the value offset.
+		 */
 		val = end;
+
+		/*
+		 * Find the end of the value (CR).
+		 */
 		ptr = strchr(end, '\r');
-		if (!ptr)
+		if (unlikely(!ptr))
 			goto out_err;
 
-		*ptr = '\0';
-		if (ptr[1] != '\n')
+		/*
+		 * Kill the CR.
+		 */
+		*ptr++ = '\0';
+
+		/*
+		 * Make sure the LF is present after the CR.
+		 */
+		if (unlikely(*ptr++ != '\n'))
 			goto out_err;
 
-		if (!strcmp("content-length", key)) {
-			char *eptr;
-			int64_t cl;
-
-			cl = (int64_t)strtoll(val, &eptr, 10);
-			if (eptr[0] != '\0')
-				cl = GWHF_CONTENT_LENGTH_INVALID;
-
-			hdr->content_length = cl;
-		} else if (!strcmp("transfer-encoding", key) && !strcmp("chunked", val)) {
-			hdr->content_length = GWHF_CONTENT_LENGTH_CHUNKED;
-		}
-
-		ptr += 2;
+		/*
+		 * The line is good, save the key and value offsets.
+		 */
+		tmp->off_key = (uint16_t)(key - hdr->buf);
+		tmp->off_val = (uint16_t)(val - hdr->buf);
 	}
 
-	hdr->fields = fields;
-	hdr->nr_fields = nr_fields;
+	hdr->hdr_fields = fields;
+	hdr->nr_hdr_fields = nr_fields;
 	return 0;
 
 out_err:
@@ -180,19 +224,30 @@ out_err:
 	return err;
 }
 
-int gwhf_req_hdr_parse(const char *buf, struct gwhf_req_hdr *hdr)
+int gwhf_parse_http_req_hdr(const char *buf, size_t buf_len,
+			    struct gwhf_http_req_hdr *hdr)
 {
 	char *crlf, *second_line;
 	uint16_t len;
 	int ret;
 
-	crlf = strstr(buf, "\r\n\r\n");
-	if (unlikely(!crlf)) {
-		/*
-		 * The request header is not complete yet.
-		 */
+	/*
+	 * Don't allow too large request header.
+	 */
+	if (unlikely(buf_len > UINT16_MAX*2u))
+		return -EINVAL;
+
+	/*
+	 * The request header must end with "\r\n\r\n".
+	 * If it doesn't, we probably don't have the whole
+	 * request header yet.
+	 */
+	if (unlikely(buf_len < 4u))
 		return -EAGAIN;
-	}
+
+	crlf = strstr(buf, "\r\n\r\n");
+	if (unlikely(!crlf))
+		return -EAGAIN;
 
 	len = (uint16_t)(crlf - buf) + 4u;
 	hdr->buf = memdup_more(buf, len, 1);
@@ -209,7 +264,7 @@ int gwhf_req_hdr_parse(const char *buf, struct gwhf_req_hdr *hdr)
 	 * "GET / HTTP/1.1\r\n"
 	 *
 	 */
-	ret = parse_method_uri_version_qs(hdr, &second_line);
+	ret = parse_method_uri_version_qs(hdr->buf, &second_line, hdr);
 	if (unlikely(ret < 0))
 		goto err;
 
@@ -225,55 +280,5 @@ int gwhf_req_hdr_parse(const char *buf, struct gwhf_req_hdr *hdr)
 err:
 	free(hdr->buf);
 	memset(hdr, 0, sizeof(*hdr));
-	hdr->content_length = GWHF_CONTENT_LENGTH_UNINITIALIZED;
 	return ret;
-}
-
-void gwhf_destroy_req_hdr(struct gwhf_req_hdr *hdr)
-{
-	if (hdr->fields) {
-		assert(hdr->nr_fields > 0);
-		free(hdr->fields);
-		hdr->fields = NULL;
-		hdr->nr_fields = 0;
-	}
-
-	if (hdr->buf) {
-		assert(hdr->buf_len > 0);
-		free(hdr->buf);
-		hdr->buf = NULL;
-		hdr->buf_len = 0;
-	}
-
-	memset(hdr, 0, sizeof(*hdr));
-	hdr->content_length = GWHF_CONTENT_LENGTH_UNINITIALIZED;
-}
-
-void gwhf_destroy_client_req_buf(struct gwhf_client *cl)
-{
-	if (cl->req_buf) {
-		assert(cl->req_buf_alloc > 0);
-		free(cl->req_buf);
-		cl->req_buf = NULL;
-		cl->req_buf_len = 0;
-		cl->req_buf_alloc = 0;
-	}
-}
-
-int gwhf_init_client_req_buf(struct gwhf_client *cl)
-{
-	uint16_t alloc;
-	char *req_buf;	
-
-	assert(cl->req_buf_alloc == 0);
-
-	alloc = GWHF_CLIENT_BUF_SIZE;
-	req_buf = malloc(alloc);
-	if (unlikely(!req_buf))
-		return -ENOMEM;
-
-	cl->req_buf = req_buf;
-	cl->req_buf_len = 0;
-	cl->req_buf_alloc = alloc;
-	return 0;
 }

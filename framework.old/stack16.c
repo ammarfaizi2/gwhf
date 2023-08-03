@@ -5,12 +5,13 @@
 
 #include "internal.h"
 
+#include <gwhf/gwhf.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
 
 __cold
-int gwhf_stack16_init(struct gwhf_stack16 *s16, uint16_t size)
+int gwhf_stack16_init(struct stack16 *s16, uint16_t size)
 {
 	uint16_t *data;
 	int err;
@@ -39,7 +40,7 @@ int gwhf_stack16_init(struct gwhf_stack16 *s16, uint16_t size)
 }
 
 __cold
-void gwhf_stack16_destroy(struct gwhf_stack16 *s16)
+void gwhf_stack16_destroy(struct stack16 *s16)
 {
 	if (s16->data) {
 		free(s16->data);
@@ -49,7 +50,7 @@ void gwhf_stack16_destroy(struct gwhf_stack16 *s16)
 	}
 }
 
-int __gwhf_stack16_push(struct gwhf_stack16 *s16, uint16_t num)
+int __gwhf_stack16_push(struct stack16 *s16, uint16_t num)
 {
 	if (s16->top == s16->size)
 		return -EAGAIN;
@@ -58,7 +59,7 @@ int __gwhf_stack16_push(struct gwhf_stack16 *s16, uint16_t num)
 	return 0;
 }
 
-int gwhf_stack16_push(struct gwhf_stack16 *s16, uint16_t num)
+int gwhf_stack16_push(struct stack16 *s16, uint16_t num)
 {
 	int err;
 
@@ -68,7 +69,7 @@ int gwhf_stack16_push(struct gwhf_stack16 *s16, uint16_t num)
 	return err;
 }
 
-int __gwhf_stack16_pop(struct gwhf_stack16 *s16, uint16_t *num)
+int __gwhf_stack16_pop(struct stack16 *s16, uint16_t *num)
 {
 	if (s16->top == 0)
 		return -EAGAIN;
@@ -77,7 +78,7 @@ int __gwhf_stack16_pop(struct gwhf_stack16 *s16, uint16_t *num)
 	return 0;
 }
 
-int gwhf_stack16_pop(struct gwhf_stack16 *s16, uint16_t *num)
+int gwhf_stack16_pop(struct stack16 *s16, uint16_t *num)
 {
 	int err;
 

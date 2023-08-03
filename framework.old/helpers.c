@@ -14,7 +14,7 @@ void *memdup(const void *src, size_t len)
 	void *ret;
 
 	ret = malloc(len);
-	if (unlikely(!ret))
+	if (!ret)
 		return NULL;
 
 	return memcpy(ret, src, len);
@@ -25,7 +25,7 @@ void *memdup_more(const void *src, size_t len, size_t more)
 	void *ret;
 
 	ret = malloc(len + more);
-	if (unlikely(!ret))
+	if (!ret)
 		return NULL;
 
 	return memcpy(ret, src, len);
@@ -79,18 +79,6 @@ char *strtolower(char *str)
 
 	while (str[0]) {
 		str[0] = tolower(str[0]);
-		str++;
-	}
-
-	return ret;
-}
-
-char *strtoupper(char *str)
-{
-	char *ret = str;
-
-	while (str[0]) {
-		str[0] = toupper(str[0]);
 		str++;
 	}
 
