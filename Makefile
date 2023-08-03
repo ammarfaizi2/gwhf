@@ -7,12 +7,12 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I./framework/include -fvisibility=hidden -Wmissing-prototypes -Wstrict-prototypes -ffunction-sections
-override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I./framework/include -fvisibility=hidden -Wmissing-prototypes -Wstrict-prototypes -ffunction-sections
+override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -fvisibility=hidden -Wmissing-prototypes -Wstrict-prototypes -ffunction-sections -fsanitize=address
+override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -fvisibility=hidden -Wmissing-prototypes -Wstrict-prototypes -ffunction-sections -fsanitize=address
 
 # Libraries
-override LDLIBS += -lpthread
-override LDFLAGS += -O2 -ggdb3
+override LDLIBS += -lpthread -fsanitize=address
+override LDFLAGS += -fpic -fPIC -O2 -ggdb3
 
 # Files
 C_SRCS_FRAMEWORK := \

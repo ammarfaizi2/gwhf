@@ -148,53 +148,9 @@ static int do_recv(struct gwhf_client *cl)
 	ssize_t ret;
 	char *buf;
 
-	buf = cl->req_buf + cl->req_buf_off;
-	len = cl->req_buf_len - cl->req_buf_off - 1;
+	buf = cl->req_buf + cl->req_buf_len;
+	len = cl->req_buf_alloc - cl->req_buf_len - 1u;
 	ret = recv(cl->fd, buf, len, MSG_DONTWAIT);
-	if (unlikely(ret < 0))
-		return -errno;
-
-	if (ret == 0)
-		return RECV_GOT_DISCONNECTED;
-
-	cl->req_buf_off += (uint16_t)ret;
-	cl->req_buf[cl->req_buf_off] = '\0';
-	return 0;
-}
-
-static int handle_event_recv(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	int ret;
-
-	ret = do_recv(cl);
-	if (unlikely(ret < 0)) {
-
-		if (ret == -EAGAIN)
-			ret = 0;
-
-		return ret;
-	}
-
-	ret = gwhf_process_recv_buffer(ctx, cl);
-	if (unlikely(ret < 0))
-		return ret;
-
-	if (cl->state == T_CLST_END_OF_RESP)
-		return 1;
-
-	if (cl->state == T_CLST_SEND_HEADER || cl->state == T_CLST_SEND_BODY) {
-		get_epv_from_cl(cl)->events |= EPOLLOUT;
-		return 0;
-	}
-
-	return 0;
-}
-
-static int do_send(struct gwhf_client *cl, const void *buf, uint16_t *len)
-{
-	ssize_t ret;
-
-	ret = send(cl->fd, buf, *len, MSG_DONTWAIT);
 	if (unlikely(ret < 0)) {
 		ret = -errno;
 		if (ret == -EAGAIN)
@@ -203,29 +159,40 @@ static int do_send(struct gwhf_client *cl, const void *buf, uint16_t *len)
 		return ret;
 	}
 
-	*len -= (uint16_t)ret;
+	if (ret == 0)
+		return -ECONNABORTED;
+
+	cl->req_buf_len += (uint16_t)ret;
+	return (int)ret;
+}
+
+static int handle_event_recv(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	int ret;
+
+	ret = do_recv(cl);
+	if (unlikely(ret < 0))
+		return ret;
+
+	ret = gwhf_consume_recv_buffer(ctx, cl);
+	if (ret < 0) {
+
+		/*
+		 * -EAGAIN means the request data has not been
+		 * fully received yet. Just wait for the next
+		 * EPOLLIN event.
+		 */
+		if (ret == -EAGAIN)
+			return 0;
+
+		return ret;
+	}
+
 	return 0;
 }
 
 static int handle_event_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	int ret;
-
-	if (cl->state == T_CLST_SEND_HEADER) {
-		char *buf = cl->res_buf + cl->res_buf_off;
-		uint16_t len = cl->res_buf_len - cl->res_buf_off;
-
-		ret = do_send(cl, buf, &len);
-		if (unlikely(ret < 0))
-			return ret;
-
-		cl->res_buf_off = cl->res_buf_len - len;
-		if (cl->res_buf_off == 0)
-			cl->state = T_CLST_SEND_BODY;
-
-		return 0;
-	}
-
 	return 0;
 }
 

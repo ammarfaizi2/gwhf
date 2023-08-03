@@ -119,7 +119,8 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 	char *buf;
 	int err;
 
-	assert(cl->res_buf_off == 0);
+	assert(cl->res_buf_sent == 0);
+	assert(cl->res_buf_len == 0);
 
 	status_str = http_code_to_str(hdr->status_code);
 
@@ -127,7 +128,7 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 
 	hdr_len = (size_t)hdr->total_req_len;
 	hdr_len += sizeof("\r\n\r\n") - 1u;
-	hdr_len += snprintf(NULL, 0, "HTTP/1.1 %d %s\r\n", hdr->status_code,
+	hdr_len += snprintf(NULL, 0, "HTTP/1.1 %hd %s\r\n", hdr->status_code,
 			    status_str);
 
 	if (unlikely(hdr_len > 65535u))
@@ -143,7 +144,7 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 	if (unlikely(!buf))
 		return -ENOMEM;
 
-	len = snprintf(buf, tot_len, "HTTP/1.1 %d %s\r\n", hdr->status_code,
+	len = snprintf(buf, tot_len, "HTTP/1.1 %hd %s\r\n", hdr->status_code,
 		       status_str);
 
 	for (i = 0; i < hdr->nr_fields; i++) {
@@ -161,7 +162,7 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 
 	cl->res_buf = buf;
 	cl->res_buf_len = tot_len;
-	cl->res_buf_off = 0;
+	cl->res_buf_sent = 0;
 	return 0;
 }
 
@@ -377,6 +378,6 @@ void gwhf_destroy_client_res_buf(struct gwhf_client *cl)
 		free(cl->res_buf);
 		cl->res_buf = NULL;
 		cl->res_buf_len = 0;
-		cl->res_buf_off = 0;
+		cl->res_buf_sent = 0;
 	}
 }

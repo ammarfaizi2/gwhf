@@ -58,15 +58,17 @@ void gwhf_soft_reset_client(struct gwhf_client *cl)
 	 */
 	assert(cl->req_buf);
 	assert(cl->res_buf);
-	assert(cl->req_buf_len > 0);
-	assert(cl->res_buf_len > 0);
+	assert(cl->req_buf_alloc);
+	assert(cl->res_buf_alloc);
 
 	/*
-	 * Do not free the buffer, just reset the offset.
-	 * We can reuse it.
+	 * Do not free the buffer, just reset the length and number
+	 * of bytes sent.
 	 */
-	cl->req_buf_off = 0;
-	cl->res_buf_off = 0;
+	cl->req_buf_len = 0;
+	cl->res_buf_len = 0;
+	cl->res_buf_sent = 0;
+
 	gwhf_destroy_req_hdr(&cl->req_hdr);
 	gwhf_destroy_res_hdr(&cl->res_hdr);
 	gwhf_destroy_res_body(&cl->res_body);
@@ -158,7 +160,11 @@ static void gwhf_signal_handler(int sig)
 		return;
 
 	*gwhf_stop_p = true;
-	write(STDERR_FILENO, &p, 1);
+	if (write(STDERR_FILENO, &p, 1) < 0) {
+		/*
+		 * Do nothing.
+		 */
+	}
 	(void) sig;
 }
 

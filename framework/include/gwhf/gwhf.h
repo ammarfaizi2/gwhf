@@ -33,6 +33,8 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 
+struct gwhf;
+
 struct stack16 {
 	uint16_t	*data;
 	uint16_t	top;
@@ -111,8 +113,6 @@ struct gwhf_req_hdr {
 
 	int64_t				content_length;
 };
-
-struct gwhf;
 
 static inline char *gwhf_req_hdr_get_method(struct gwhf_req_hdr *hdr)
 {
@@ -257,32 +257,33 @@ struct gwhf_client {
 	int64_t			total_req_body_recv;
 
 	/*
-	 * Buffer for storing the incoming data.
+	 * Buffer for request and response.
 	 */
 	char			*req_buf;
-
-	/*
-	 * Buffer for storing the response data.
-	 */
 	char			*res_buf;
 
 	/*
-	 * The length of used buffer.
+	 * The allocated size of @req_buf and @res_buf.
+	 *
+	 * These two are for optimization purposes by
+	 * reducing the number of calls to realloc().
 	 */
-	uint16_t		req_buf_off;
+	uint16_t		req_buf_alloc;
+	uint16_t		res_buf_alloc;
 
 	/*
-	 * The length of allocated buffer. @buf_len must
-	 * always be greater than or equal to @buf_off.
+	 * The occupied size of @req_buf and @res_buf. These
+	 * two must be less than or equal to the allocated
+	 * size.
 	 */
 	uint16_t		req_buf_len;
+	uint16_t		res_buf_len;
 
 	/*
-	 * The same as @req_buf_off and @req_buf_len, but
-	 * for @res_buf.
+	 * The number of bytes sent from @res_buf.
 	 */
-	uint16_t		res_buf_off;
-	uint16_t		res_buf_len;
+	uint16_t		res_buf_sent;
+
 
 	/*
 	 * struct gwhf_client is stored in an array. @id is

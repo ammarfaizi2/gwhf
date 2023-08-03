@@ -83,7 +83,7 @@ void *memdup_more(const void *src, size_t len, size_t more);
 char *strtolower(char *str);
 size_t url_decode(char *str, size_t len);
 
-int gwhf_process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl);
+int gwhf_consume_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl);
 
 void gwhf_destroy_route_body(struct gwhf_internal *it);
 void gwhf_destroy_route_header(struct gwhf_internal *it);

@@ -252,24 +252,28 @@ void gwhf_destroy_req_hdr(struct gwhf_req_hdr *hdr)
 void gwhf_destroy_client_req_buf(struct gwhf_client *cl)
 {
 	if (cl->req_buf) {
-		assert(cl->req_buf_len > 0);
+		assert(cl->req_buf_alloc > 0);
 		free(cl->req_buf);
 		cl->req_buf = NULL;
 		cl->req_buf_len = 0;
-		cl->req_buf_off = 0;
+		cl->req_buf_alloc = 0;
 	}
 }
 
 int gwhf_init_client_req_buf(struct gwhf_client *cl)
 {
-	char *req_buf;
+	uint16_t alloc;
+	char *req_buf;	
 
-	req_buf = malloc(GWHF_CLIENT_BUF_SIZE);
-	if (!req_buf)
+	assert(cl->req_buf_alloc == 0);
+
+	alloc = GWHF_CLIENT_BUF_SIZE;
+	req_buf = malloc(alloc);
+	if (unlikely(!req_buf))
 		return -ENOMEM;
 
 	cl->req_buf = req_buf;
-	cl->req_buf_len = GWHF_CLIENT_BUF_SIZE;
-	cl->req_buf_off = 0;
+	cl->req_buf_len = 0;
+	cl->req_buf_alloc = alloc;
 	return 0;
 }

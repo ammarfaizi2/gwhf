@@ -13,301 +13,196 @@
 #include <string.h>
 #include <stdio.h>
 
-static void set_end_of_resp(struct gwhf_client *cl)
+static int process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl);
+
+static int process_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	cl->state = T_CLST_END_OF_RESP;
-	cl->req_buf_off = 0;
-}
+	uint16_t hdr_len;
+	int ret;
 
-static bool is_eligible_for_keep_alive(struct gwhf_client *cl)
-{
-	struct gwhf_req_hdr *hdr = &cl->req_hdr;
-	char *val;
+	if (unlikely(cl->req_buf_len < 5))
+		return -EAGAIN;
 
-	if (!cl->res_buf) {
-		/*
-		 * If the response buffer is NULL, then it means
-		 * that the sever has not sent any response.
-		 *
-		 * Don't allow keep-alive.
-		 */
-		return false;
-	}
+	ret = gwhf_req_hdr_parse(cl->req_buf, &cl->req_hdr);
+	if (unlikely(ret < 0))
+		return ret;
 
-	assert(cl->state == T_CLST_ROUTE_BODY);
-	val = gwhf_req_hdr_get_field(hdr, "connection");
-	if (val) {
-		/*
-		 * If the client sent a "Connection" header, then
-		 * we need to check whether the value is "keep-alive".
-		 * If it is, then it is eligible for keep-alive.
-		 */
-		return !strcasecmp(val, "keep-alive");
-	}
+	hdr_len = (uint16_t)ret;
+	assert(hdr_len <= cl->req_buf_len);
 
 	/*
-	 * If the client did not send a "Connection" header, then
-	 * we need to check whether the HTTP version is 1.1.
-	 * If it is, then it is eligible for keep-alive.
+	 * The request body might have been received together with the
+	 * header. If so, memmove() the request body to the beginning of
+	 * the buffer and update the length.
 	 */
-	val = gwhf_req_hdr_get_version(hdr);
-	return !strcmp(val, "HTTP/1.1");
+	if (hdr_len < cl->req_buf_len) {
+		char *buf = cl->req_buf;
+		char *src = &buf[hdr_len];
+		size_t len = cl->req_buf_len - hdr_len;
+
+		memmove(buf, src, len);
+		cl->req_buf_len -= hdr_len;
+	} else {
+		cl->req_buf_len = 0;
+	}
+
+	cl->state = T_CLST_ROUTE_HEADER;
+	return process_recv_buffer(ctx, cl);
 }
 
-static int gen_iterate_result(struct gwhf *ctx, struct gwhf_client *cl, int res)
+static int construct_404_route(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_res_hdr *hdr = &cl->res_hdr;
+	int ret;
+
+	ret = gwhf_res_body_add_buf(cl, "404 Not Found", 13);
+	if (ret)
+		return -ENOMEM;
+
+	gwhf_res_hdr_set_status_code(hdr, 200);
+	ret |= gwhf_res_hdr_set_content_type(hdr, "text/plain; charset=utf-8");
+	ret |= gwhf_res_hdr_set_content_length(hdr, 5);
+	if (ret)
+		return -ENOMEM;
+
+	return 0;
+}
+
+static int decide_route_result(struct gwhf *ctx, struct gwhf_client *cl, int res)
 {
 	int ret = 0;
 
 	switch (res) {
-	case GWHF_ROUTE_EXECUTED:
-		ret = gwhf_construct_res_buf(cl);
-		if (ret < 0) {
-			set_end_of_resp(cl);
-			return ret;
-		}
-
-		cl->state = T_CLST_SEND_HEADER;
-		ret = -EAGAIN;
-		break;
 	case GWHF_ROUTE_NOT_FOUND:
-		/*
-		 * TODO(ammarfaizi2): Add default 404 page.
-		 */
-		break;
-	case GWHF_ROUTE_CONTINUE:
+		ret = construct_404_route(ctx, cl);
 		break;
 	case GWHF_ROUTE_ERROR:
-		/*
-		 * TODO(ammarfaizi2): Add default 404 page.
-		 */
+		ret = -ECONNABORTED;
+		break;
+	case GWHF_ROUTE_CONTINUE:
+		ret = 0;
 		break;
 	}
 
 	return ret;
 }
 
-static int iterate_route_header(struct gwhf *ctx, struct gwhf_client *cl)
+static int process_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
 	struct gwhf_route_header *hdr;
 	uint16_t i;
+	int ret;
 
 	for (i = 0; i < it->nr_route_header; i++) {
-		int ret;
-
 		hdr = &it->route_header[i];
 		ret = hdr->exec_cb(ctx, cl);
-		ret = gen_iterate_result(ctx, cl, ret);
-		if (ret)
-			return ret;
+		if (ret == GWHF_ROUTE_ERROR)
+			return -ECONNABORTED;
 	}
 
-	return 0;
+	cl->state = T_CLST_RECV_BODY;
+	return process_recv_buffer(ctx, cl);
 }
 
-static int iterate_route_body(struct gwhf *ctx, struct gwhf_client *cl)
+static int process_body(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_req_hdr *hdr = &cl->req_hdr;
+	int64_t con_len;
+
+	cl->total_req_body_recv += (int64_t)cl->req_buf_len;
+	con_len = hdr->content_length;
+	assert(con_len != GWHF_CONTENT_LENGTH_UNINITIALIZED);
+
+	if (con_len == GWHF_CONTENT_LENGTH_CHUNKED ||
+	    con_len == GWHF_CONTENT_LENGTH_INVALID) {
+		/*
+		 * TODO: Implement chunked transfer encoding.
+		 *
+		 * Currently, the server does not support chunked transfer
+		 * encoding. Drop the connection.
+		 */
+		return -ECONNABORTED;
+	} else if (con_len == 0) {
+		/*
+		 * The request body is empty. Process the request.
+		 */
+		cl->state = T_CLST_ROUTE_BODY;
+	} else if (con_len == GWHF_CONTENT_LENGTH_NOT_PRESENT) {
+		/*
+		 * TODO(ammarfaizi2): Handle POST request without
+		 *                    a Content-Length header.
+		 */
+		cl->state = T_CLST_ROUTE_BODY;
+	} else if (cl->total_req_body_recv > con_len) {
+		/*
+		 * The request body is too large. Drop the connection.
+		 */
+		return -EINVAL;
+	} else if (cl->total_req_body_recv == con_len) {
+		/*
+		 * The request body is complete. Process the request.
+		 */
+		cl->state = T_CLST_ROUTE_BODY;
+	} else {
+		/*
+		 * The request body is not complete yet.
+		 */
+		return -EAGAIN;
+	}
+
+	return process_recv_buffer(ctx, cl);
+}
+
+static int process_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
 	struct gwhf_route_body *body;
 	uint16_t i;
+	int ret;
 
 	for (i = 0; i < it->nr_route_body; i++) {
-		int ret;
-
 		body = &it->route_body[i];
 		ret = body->exec_cb(ctx, cl);
-		ret = gen_iterate_result(ctx, cl, ret);
+		ret = decide_route_result(ctx, cl, ret);
 		if (ret)
 			return ret;
 	}
 
-	set_end_of_resp(cl);
+	cl->state = T_CLST_IDLE;
 	return 0;
-}
-
-static int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	return iterate_route_header(ctx, cl);
-}
-
-static int gwhf_exec_route_body(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	return iterate_route_body(ctx, cl);
-}
-
-static int realloc_recv_buffer_if_needed(struct gwhf_client *cl)
-{
-	size_t new_size;
-	char *tmp;
-
-	if (likely(cl->req_buf_off < cl->req_buf_len)) {
-		/*
-		 * The buffer is still not full. Go on!
-		 */
-		return 0;
-	}
-
-	/*
-	 * The buffer is full. We need to increase the buffer size.
-	 */
-	new_size = (size_t)cl->req_buf_len + 4096;
-	if (new_size > 65535) {
-		/*
-		 * Don't allow the buffer size to exceed 65535 bytes.
-		 */
-		return -ENOMEM;
-	}
-
-	tmp = realloc(cl->req_buf, new_size);
-	if (unlikely(!tmp)) {
-		/*
-		 * Out of memory.
-		 */
-		return -ENOMEM;
-	}
-
-	cl->req_buf = tmp;
-	cl->req_buf_len = (uint16_t)new_size;
-	return 0;
-}
-
-static int process_recv_body(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	uint16_t cur_recv_len = cl->req_buf_off;
-	struct gwhf_req_hdr *hdr = &cl->req_hdr;
-
-	assert(cl->state == T_CLST_RECV_BODY);
-	assert(hdr->content_length != GWHF_CONTENT_LENGTH_UNINITIALIZED);
-
-	cl->req_buf_off = 0;
-
-	if (hdr->content_length == GWHF_CONTENT_LENGTH_CHUNKED) {
-		/*
-		 * Currently we don't support chunked transfer encoding.
-		 */
-		return -EOPNOTSUPP;
-	}
-
-	cl->total_req_body_recv += (int64_t)cur_recv_len;
-	if (unlikely(cl->total_req_body_recv > hdr->content_length ||
-	             hdr->content_length == GWHF_CONTENT_LENGTH_INVALID)) {
-		/*
-		 * Either the client sent more data than the content
-		 * length, or the content length is invalid.
-		 */
-		return -EINVAL;
-	}
-
-	if (cl->total_req_body_recv == hdr->content_length ||
-	    hdr->content_length == GWHF_CONTENT_LENGTH_NOT_PRESENT) {
-		/*
-		 * The request body is complete. We can now process
-		 * the request.
-		 */
-		cl->state = T_CLST_ROUTE_BODY;
-		return gwhf_exec_route_body(ctx, cl);
-	}
-
-	/*
-	 * We need to read more data.
-	 */
-	return realloc_recv_buffer_if_needed(cl);
-}
-
-static int process_recv_header(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	uint16_t hdr_len;
-	int ret;
-
-	assert(cl->total_req_body_recv == 0);
-
-	cl->state = T_CLST_RECV_HEADER;
-	ret = gwhf_req_hdr_parse(cl->req_buf, &cl->req_hdr);
-	if (unlikely(ret < 0))
-		return ret;
-
-	/*
-	 * The request header is complete. We can now process
-	 * the request.
-	 */
-	hdr_len = (uint16_t)ret;
-
-	cl->state = T_CLST_ROUTE_HEADER;
-	ret = gwhf_exec_route_header(ctx, cl);
-	if (unlikely(ret < 0))
-		return ret;
-
-	if (cl->state == T_CLST_CLOSED)
-		return 0;
-
-	if (cl->req_buf_off > hdr_len) {
-		/*
-		 * If the received data is larger than the request
-		 * header, then we request body has also been received.
-		 */
-		memmove(cl->req_buf, cl->req_buf + hdr_len, cl->req_buf_off - hdr_len);
-		cl->req_buf_off -= hdr_len;
-	} else {
-		/*
-		 * Otherwise, we need to read more data.
-		 */
-		cl->req_buf_off = 0;
-	}
-
-	/*
-	 * We're ready to receive the request body.
-	 */
-	cl->state = T_CLST_RECV_BODY;
-	return process_recv_body(ctx, cl);
 }
 
 static int process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	int ret = 0;
+
 	switch (cl->state) {
 	case T_CLST_IDLE:
 	case T_CLST_RECV_HEADER:
-		return process_recv_header(ctx, cl);
-	case T_CLST_RECV_BODY:
-		return process_recv_body(ctx, cl);
+		ret = process_header(ctx, cl);
+		break;
 	case T_CLST_ROUTE_HEADER:
+		ret = process_route_header(ctx, cl);
+		break;
+	case T_CLST_RECV_BODY:
+		ret = process_body(ctx, cl);
+		break;
 	case T_CLST_ROUTE_BODY:
-	case T_CLST_SEND_HEADER:
-	case T_CLST_SEND_BODY:
-	case T_CLST_END_OF_RESP:
-	default:
-		abort();
+		ret = process_route_body(ctx, cl);
+		break;
 	}
+
+	return ret;
 }
 
-int gwhf_process_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
+int gwhf_consume_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	int ret = 0;
+	int ret;
 
-	/*
-	 * Keep consuming the received data until the buffer is empty,
-	 * or an error occurs.
-	 */
-	while (cl->req_buf_off > 0) {
-		ret = process_recv_buffer(ctx, cl);
-		if (unlikely(ret < 0))
-			break;
-	}
-
-	if (!ret) {
-		if (is_eligible_for_keep_alive(cl)) {
-			gwhf_soft_reset_client(cl);
-			assert(cl->state == T_CLST_IDLE);
-			return 0;
-		}
-
+	ret = process_recv_buffer(ctx, cl);
+	if (ret >= 0)
 		return 0;
-	}
-
-	/*
-	 * If the error is EAGAIN, then we need to wait for more data.
-	 */
-	if (ret == -EAGAIN)
-		ret = 0;
 
 	return ret;
 }
