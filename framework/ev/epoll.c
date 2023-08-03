@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdio.h>
 
 static int epoll_add(int epfd, int fd, uint32_t events, union epoll_data data);
 
@@ -244,6 +245,134 @@ static int handle_event_fd(struct gwhf *ctx)
 	return 0;
 }
 
+static inline struct epoll_event *cl_get_ev(struct gwhf_client *cl)
+{
+	return cl->private_data;
+}
+
+static int do_recv(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stm = &cl->streams[0];
+	ssize_t ret;
+	size_t len;
+	char *buf;
+
+	buf = stm->req_buf + stm->req_buf_len;
+	len = stm->req_buf_alloc - stm->req_buf_len;
+	ret = recv(cl->fd, buf, len, MSG_DONTWAIT);
+	if (unlikely(ret < 0)) {
+
+		ret = -errno;
+		if (ret == -EAGAIN || ret == -EINTR)
+			return 0;
+
+		return ret;
+	}
+
+	if (ret == 0)
+		return -ECONNRESET;
+
+	stm->req_buf_len += (uint32_t)ret;
+	return (int)ret;
+}
+
+static int handle_client_recv(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	int ret;
+
+	do {
+		ret = do_recv(cl);
+		if (unlikely(ret < 0))
+			return ret;
+
+		ret = gwhf_consume_client_recv_buf(ctx, cl);
+	} while (ret == -EAGAIN);
+
+	if (likely(!ret)) {
+		uint8_t state = cl->streams[0].state;
+		if (state & (T_CL_STREAM_SEND_HEADER | T_CL_STREAM_SEND_BODY))
+			cl_get_ev(cl)->events |= EPOLLOUT;
+	}
+
+	return 0;
+}
+
+static int do_send(struct gwhf_client *cl, const void *buf, size_t len)
+{
+	ssize_t ret;
+
+	ret = send(cl->fd, buf, len, MSG_DONTWAIT);
+	if (unlikely(ret < 0)) {
+
+		ret = -errno;
+		if (ret == -EAGAIN || ret == -EINTR)
+			return 0;
+
+		return ret;
+	}
+
+	return (int)ret;
+}
+
+static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	const void *buf;
+	size_t len;
+	int ret;
+
+	while (1) {
+		ret = gwhf_get_client_send_buf(ctx, cl, &buf, &len);
+		if (unlikely(ret < 0))
+			return ret;
+
+		if (!len)
+			break;
+
+		ret = do_send(cl, buf, len);
+		if (unlikely(ret < 0))
+			return ret;
+
+		gwhf_client_send_buf_advance(cl, (size_t)ret);
+	}
+
+	return 0;
+}
+
+static int handle_client(struct gwhf *ctx, struct epoll_event *ev)
+{
+	struct gwhf_client *cl = ev->data.ptr;
+	int put = 0;
+	int err = 0;
+
+	if (unlikely(ev->events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+		put = 1;
+		goto out;
+	}
+
+	cl->private_data = ev;
+	cl->last_act = ctx->now;
+	if (ev->events & EPOLLIN) {
+		put = handle_client_recv(ctx, cl);
+		if (put)
+			goto out;
+	}
+
+	if (ev->events & EPOLLOUT) {
+		put = handle_client_send(ctx, cl);
+		if (put)
+			goto out;
+	}
+
+out:
+	cl->private_data = NULL;
+	if (put) {
+		err = epoll_del(ctx->ev_epoll.epoll_fd, cl->fd);
+		gwhf_put_client(&ctx->client_slot, cl);
+	}
+
+	return err;
+}
+
 static int handle_event(struct gwhf *ctx, struct epoll_event *ev)
 {
 	if (ev->data.u64 == 0)
@@ -252,7 +381,7 @@ static int handle_event(struct gwhf *ctx, struct epoll_event *ev)
 	if (ev->data.u64 == 1)
 		return handle_event_fd(ctx);
 
-	return 0;
+	return handle_client(ctx, ev);
 }
 
 static int handle_events(struct gwhf *ctx, int nr_events)

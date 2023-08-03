@@ -248,30 +248,32 @@ static void destroy_event_loop(struct gwhf *ctx)
 	}
 }
 
-static void destroy_client_slot(struct gwhf *ctx)
+static int init_internal_data(struct gwhf *ctx)
 {
-	struct gwhf_client_slot *cs = &ctx->client_slot;
-	struct gwhf_client *cl, *clients;
-	uint16_t i;
+	struct gwhf_internal *data;
 
-	clients = cs->clients;
-	if (!clients)
-		return;
+	data = calloc(1, sizeof(*data));
+	if (data == NULL)
+		return -ENOMEM;
 
-	for (i = 0; i < cs->stack.size; i++) {
-		cl = &clients[cs->stack.data[i]];
-		if (cl->fd >= 0)
-			close(cl->fd);
-	}
+	ctx->internal_data = data;
+	return 0;
+}
 
-	free(clients);
-	gwhf_destroy_stack16(&cs->stack);
+static void destroy_internal_data(struct gwhf *ctx)
+{
+	struct gwhf_internal *data = ctx->internal_data;
+
+	gwhf_destroy_route_header(data);
+	gwhf_destroy_route_body(data);
+	free(data);
 }
 
 __cold noinline
 void gwhf_destroy(struct gwhf *ctx)
 {
-	destroy_client_slot(ctx);
+	gwhf_destroy_client_slot(ctx);
+	destroy_internal_data(ctx);
 	destroy_event_loop(ctx);
 	destroy_tcp_socket(ctx);
 	revert_signal_handler(ctx);
@@ -310,7 +312,11 @@ int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg)
 	if (ret < 0)
 		goto out_err;
 
-	ret = init_client_slot(ctx);
+	ret = init_internal_data(ctx);
+	if (ret < 0)
+		goto out_err;
+
+	ret = gwhf_init_client_slot(ctx);
 	if (ret < 0)
 		goto out_err;
 

@@ -38,6 +38,8 @@ struct gwhf_client_stream {
 
 	uint32_t	res_buf_sent;
 
+	int64_t		total_req_body_len;
+
 	struct gwhf_http_req_hdr	req_hdr;
 	struct gwhf_http_req_body	req_body;
 	struct gwhf_http_res_hdr	res_hdr;
@@ -46,9 +48,11 @@ struct gwhf_client_stream {
 
 struct gwhf_client {
 	struct gwhf_client_stream	*streams;
+	void				*private_data;
 	struct sockaddr_gwhf		addr;
 	int				fd;
 	uint32_t			nr_streams;
+	struct timespec 		last_act;
 };
 
 struct gwhf_client_slot {
@@ -109,6 +113,7 @@ struct gwhf {
 		struct gwhf_ev_epoll	ev_epoll;
 	};
 
+	void				*internal_data;
 	struct timespec			now;
 	struct gwhf_init_arg		init_arg;
 	struct sigaction		old_act[3];
@@ -118,6 +123,11 @@ GWHF_EXPORT int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg)
 GWHF_EXPORT int gwhf_init(struct gwhf *ctx);
 GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
+
+GWHF_EXPORT int gwhf_add_route_header(struct gwhf *ctx,
+			int (*callback)(struct gwhf *, struct gwhf_client *));
+GWHF_EXPORT int gwhf_add_route_body(struct gwhf *ctx,
+			int (*callback)(struct gwhf *, struct gwhf_client *));
 
 #ifdef __cplusplus
 } /* extern "C" */

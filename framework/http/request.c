@@ -347,3 +347,44 @@ void gwhf_destroy_res_buf(struct gwhf_client_stream *stream)
 	stream->res_buf_alloc = 0u;
 	stream->res_buf_sent = 0u;
 }
+
+int gwhf_init_http_req_hdr(struct gwhf_http_req_hdr *hdr)
+{
+	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
+	return 0;
+}
+
+int gwhf_init_http_res_hdr(struct gwhf_http_res_hdr *hdr)
+{
+	return 0;
+}
+
+int gwhf_init_http_req_body(struct gwhf_http_req_body *body)
+{
+	return 0;
+}
+
+int gwhf_init_http_res_body(struct gwhf_http_res_body *body)
+{
+	return 0;
+}
+
+void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr)
+{
+	free(hdr->buf);
+	free(hdr->hdr_fields);
+	memset(hdr, 0, sizeof(*hdr));
+	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
+}
+
+void gwhf_destroy_http_req_body(struct gwhf_http_req_body *body)
+{
+}
+
+void gwhf_destroy_http_res_hdr(struct gwhf_http_res_hdr *hdr)
+{
+}
+
+void gwhf_destroy_http_res_body(struct gwhf_http_res_body *body)
+{
+}

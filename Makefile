@@ -7,12 +7,21 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address
-override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address
+override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
+override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
 
 # Libraries
-override LDLIBS += -lpthread -fsanitize=address
+override LDLIBS += -lpthread
 override LDFLAGS += -fpic -fPIC -O2 -ggdb3
+
+SANITIZE=0
+
+ifeq ($(SANITIZE),1)
+override CFLAGS += -fsanitize=address
+override CXXFLAGS += -fsanitize=address
+override LDLIBS += -fsanitize=address
+override LDFLAGS += -fsanitize=address
+endif
 
 # Files
 C_SRCS_FRAMEWORK := \
@@ -22,6 +31,7 @@ C_SRCS_FRAMEWORK := \
 	framework/client.c \
 	framework/gwhf.c \
 	framework/helpers.c \
+	framework/router.c \
 	framework/stack16.c
 
 CXX_SRCS_FRAMEWORK :=
