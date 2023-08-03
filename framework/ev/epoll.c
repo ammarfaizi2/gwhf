@@ -188,11 +188,61 @@ static int handle_event_recv(struct gwhf *ctx, struct gwhf_client *cl)
 		return ret;
 	}
 
+	if (cl->state == T_CLST_SEND_HEADER || cl->state == T_CLST_SEND_BODY)
+		get_epv_from_cl(cl)->events |= EPOLLOUT;
+
 	return 0;
+}
+
+static int do_send(struct gwhf_client *cl, const void *buf, size_t len)
+{
+	ssize_t ret;
+
+	ret = send(cl->fd, buf, len, MSG_DONTWAIT);
+	if (unlikely(ret < 0)) {
+		ret = -errno;
+		if (ret == -EAGAIN)
+			return 0;
+
+		return ret;
+	}
+
+	if (ret == 0)
+		return -ECONNABORTED;
+
+	return (int)ret;
 }
 
 static int handle_event_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	const void *buf;
+	size_t len;
+	int ret;
+
+	ret = gwhf_consume_send_buffer(cl, &buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	ret = do_send(cl, buf, len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	if (ret < (int)len) {
+		if (!cl->pollout_set) {
+			union epoll_data data;
+			int ret;
+
+			data.ptr = cl;
+			ret = epoll_mod(ctx->ep.epoll_fd, cl->fd,
+					EPOLLIN | EPOLLOUT, data);
+			if (unlikely(ret < 0))
+				return ret;
+
+			cl->pollout_set = true;
+		}
+	}
+
+	gwhf_send_buffer_advance(cl, (size_t)ret);
 	return 0;
 }
 

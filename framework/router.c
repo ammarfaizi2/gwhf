@@ -73,6 +73,12 @@ static int decide_route_result(struct gwhf *ctx, struct gwhf_client *cl, int res
 	int ret = 0;
 
 	switch (res) {
+	case GWHF_ROUTE_EXECUTED:
+		cl->state = T_CLST_SEND_HEADER;
+		ret = gwhf_construct_res_buf(cl);
+		if (!ret)
+			ret = 1;
+		break;
 	case GWHF_ROUTE_NOT_FOUND:
 		ret = construct_404_route(ctx, cl);
 		break;
@@ -267,4 +273,53 @@ int gwhf_add_route_body(struct gwhf *ctx,
 	it->nr_route_body = (uint16_t)new_nr;
 	it->route_body[new_nr - 1].exec_cb = callback;
 	return 0;
+}
+
+int gwhf_consume_send_buffer(struct gwhf_client *cl, const void **buf,
+			     size_t *len)
+{
+	struct gwhf_res_body *body;
+
+	assert(cl->state == T_CLST_SEND_HEADER || cl->state == T_CLST_SEND_BODY);
+
+	if (cl->state == T_CLST_SEND_HEADER) {
+		*buf = cl->res_buf + cl->res_buf_sent;
+		*len = cl->res_buf_len - cl->res_buf_sent;
+		return 0;
+	}
+
+	body = &cl->res_body;
+	switch (body->type) {
+	case GWHF_RES_BODY_TYPE_NONE:
+		*buf = NULL;
+		*len = 0;
+		break;
+	case GWHF_RES_BODY_TYPE_BUF:
+		*buf = body->buf.buf + body->off;
+		*len = body->buf.len - body->off;
+		break;
+	}
+
+	return 0;
+}
+
+void gwhf_send_buffer_advance(struct gwhf_client *cl, size_t len)
+{
+	struct gwhf_res_body *body;
+
+	assert(cl->state == T_CLST_SEND_HEADER || cl->state == T_CLST_SEND_BODY);
+
+	if (cl->state == T_CLST_SEND_HEADER) {
+		cl->res_buf_sent += len;
+		return;
+	}
+
+	body = &cl->res_body;
+	switch (body->type) {
+	case GWHF_RES_BODY_TYPE_NONE:
+		break;
+	case GWHF_RES_BODY_TYPE_BUF:
+		body->off += len;
+		break;
+	}
 }

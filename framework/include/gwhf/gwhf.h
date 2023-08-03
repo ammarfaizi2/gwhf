@@ -307,6 +307,7 @@ struct gwhf_client {
 	struct timespec		last_act;
 
 	void			*private_data;
+	bool			pollout_set;
 };
 
 struct gwhf_client_slot {

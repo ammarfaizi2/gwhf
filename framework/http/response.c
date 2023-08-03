@@ -148,7 +148,7 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 		       status_str);
 
 	for (i = 0; i < hdr->nr_fields; i++) {
-		len += snprintf(buf + len, len, "%s: %s\r\n",
+		len += snprintf(buf + len, tot_len - len, "%s: %s\r\n",
 				hdr->fields[i].key, hdr->fields[i].val);
 	}
 
@@ -161,7 +161,7 @@ int gwhf_construct_res_buf(struct gwhf_client *cl)
 	}
 
 	cl->res_buf = buf;
-	cl->res_buf_len = tot_len;
+	cl->res_buf_len = len + body_len;
 	cl->res_buf_sent = 0;
 	return 0;
 }

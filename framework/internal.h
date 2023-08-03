@@ -88,6 +88,11 @@ int gwhf_consume_recv_buffer(struct gwhf *ctx, struct gwhf_client *cl);
 void gwhf_destroy_route_body(struct gwhf_internal *it);
 void gwhf_destroy_route_header(struct gwhf_internal *it);
 
+int gwhf_consume_send_buffer(struct gwhf_client *cl, const void **buf,
+			     size_t *len);
+
+void gwhf_send_buffer_advance(struct gwhf_client *cl, size_t len);
+
 static inline struct gwhf_internal *gwhf_get_internal(struct gwhf *ctx)
 {
 	return ctx->internal_data;
