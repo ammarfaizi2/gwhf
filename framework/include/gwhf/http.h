@@ -7,6 +7,10 @@
 #ifndef GWHF__CLIENT_H
 #define GWHF__CLIENT_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "socket.h"
 #include "stack.h"
 #include <stdint.h>

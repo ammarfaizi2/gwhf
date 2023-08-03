@@ -7,6 +7,10 @@
 #ifndef GWHF__SOCKET_H
 #define GWHF__SOCKET_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>

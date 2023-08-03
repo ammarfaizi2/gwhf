@@ -9,6 +9,7 @@
 #include <string.h>
 #include <ctype.h>
 
+__hot
 void *memdup(const void *src, size_t len)
 {
 	void *ret;
@@ -20,6 +21,7 @@ void *memdup(const void *src, size_t len)
 	return memcpy(ret, src, len);
 }
 
+__hot
 void *memdup_more(const void *src, size_t len, size_t more)
 {
 	void *ret;
@@ -49,6 +51,7 @@ static int htoi(char *s)
 	return (value);
 }
 
+__hot
 size_t url_decode(char *str, size_t len)
 {
 	char *dest = str;
@@ -73,6 +76,7 @@ size_t url_decode(char *str, size_t len)
 	return dest - str;
 }
 
+__hot
 char *strtolower(char *str)
 {
 	char *ret = str;
@@ -85,6 +89,7 @@ char *strtolower(char *str)
 	return ret;
 }
 
+__hot
 char *strtoupper(char *str)
 {
 	char *ret = str;

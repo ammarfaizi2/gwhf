@@ -1,11 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
+ * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
+ */
 
-#define NDEBUG
 #include "request.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
+__hot
 static int parse_method_uri_version_qs(char *buf, char **second_line,
 				       struct gwhf_http_req_hdr *hdr)
 {
@@ -119,6 +124,7 @@ static int parse_method_uri_version_qs(char *buf, char **second_line,
 	return 0;
 }
 
+__hot
 static int parse_hdr_req_fields(char *buf, struct gwhf_http_req_hdr *hdr)
 {
 	struct gwhf_http_hdr_field_off *fields;
@@ -224,6 +230,7 @@ out_err:
 	return err;
 }
 
+__hot
 int gwhf_parse_http_req_hdr(const char *buf, size_t buf_len,
 			    struct gwhf_http_req_hdr *hdr)
 {
@@ -280,5 +287,63 @@ int gwhf_parse_http_req_hdr(const char *buf, size_t buf_len,
 err:
 	free(hdr->buf);
 	memset(hdr, 0, sizeof(*hdr));
+	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
 	return ret;
+}
+
+int gwhf_init_req_buf(struct gwhf_client_stream *stream)
+{
+	uint32_t alloc = 8192u;
+	char *buf;
+
+	assert(!stream->req_buf);
+	assert(!stream->req_buf_len);
+	assert(!stream->req_buf_alloc);
+
+	buf = malloc(alloc);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
+	stream->req_buf = buf;
+	stream->req_buf_len = 0u;
+	stream->req_buf_alloc = alloc;
+	return 0;
+}
+
+int gwhf_init_res_buf(struct gwhf_client_stream *stream)
+{
+	uint32_t alloc = 8192u;
+	char *buf;
+
+	assert(!stream->res_buf);
+	assert(!stream->res_buf_len);
+	assert(!stream->res_buf_alloc);
+	assert(!stream->res_buf_sent);
+
+	buf = malloc(alloc);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
+	stream->res_buf = buf;
+	stream->res_buf_len = 0u;
+	stream->res_buf_alloc = alloc;
+	stream->res_buf_sent = 0u;
+	return 0;
+}
+
+void gwhf_destroy_req_buf(struct gwhf_client_stream *stream)
+{
+	free(stream->req_buf);
+	stream->req_buf = NULL;
+	stream->req_buf_len = 0u;
+	stream->req_buf_alloc = 0u;
+}
+
+void gwhf_destroy_res_buf(struct gwhf_client_stream *stream)
+{
+	free(stream->res_buf);
+	stream->res_buf = NULL;
+	stream->res_buf_len = 0u;
+	stream->res_buf_alloc = 0u;
+	stream->res_buf_sent = 0u;
 }

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "helpers.h"
 
@@ -48,5 +49,23 @@
 #ifndef __always_inline
 #define __always_inline __attribute__((__always_inline__))
 #endif
+
+enum {
+	T_CL_STREAM_OFF             = 0,
+	T_CL_STREAM_IDLE            = 1,
+
+	T_CL_STREAM_RECV_HEADER     = 2,
+	T_CL_STREAM_ROUTE_HEADER    = 3,
+	T_CL_STREAM_RECV_BODY       = 4,
+	T_CL_STREAM_ROUTE_BODY      = 5,
+
+	T_CL_STREAM_SEND_HEADER     = 6,
+	T_CL_STREAM_SEND_BODY       = 7,
+};
+
+int init_client_slot(struct gwhf *ctx);
+struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs);
+void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
+void gwhf_reset_client(struct gwhf_client *cl);
 
 #endif /* #ifndef GWHF__FRAMEWORK__INTERNAL_H */

@@ -7,17 +7,19 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
-override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes 
+override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address
+override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address
 
 # Libraries
-override LDLIBS += -lpthread
+override LDLIBS += -lpthread -fsanitize=address
 override LDFLAGS += -fpic -fPIC -O2 -ggdb3
 
 # Files
 C_SRCS_FRAMEWORK := \
+	framework/ev/epoll.c \
 	framework/http/request.c \
 	framework/http/response.c \
+	framework/client.c \
 	framework/gwhf.c \
 	framework/helpers.c \
 	framework/stack16.c

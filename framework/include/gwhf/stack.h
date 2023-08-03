@@ -7,6 +7,10 @@
 #ifndef GWHF__STACK_H
 #define GWHF__STACK_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 #include <pthread.h>
 #include "common.h"
@@ -23,12 +27,12 @@ struct gwhf_stack16 {
 	pthread_cond_t	cond;
 };
 
-GWHF_EXPORT int gwhf_stack16_init(struct gwhf_stack16 *stack, uint16_t size);
-GWHF_EXPORT void gwhf_stack16_destroy(struct gwhf_stack16 *stack);
-GWHF_EXPORT int gwhf_stack16_push(struct gwhf_stack16 *stack, uint16_t data);
-GWHF_EXPORT int __gwhf_stack16_push(struct gwhf_stack16 *stack, uint16_t data);
-GWHF_EXPORT int gwhf_stack16_pop(struct gwhf_stack16 *stack, uint16_t *data);
-GWHF_EXPORT int __gwhf_stack16_pop(struct gwhf_stack16 *stack, uint16_t *data);
+GWHF_EXPORT int gwhf_init_stack16(struct gwhf_stack16 *stack, uint16_t size);
+GWHF_EXPORT void gwhf_destroy_stack16(struct gwhf_stack16 *stack);
+GWHF_EXPORT int gwhf_push_stack16(struct gwhf_stack16 *stack, uint16_t data);
+GWHF_EXPORT int __gwhf_push_stack16(struct gwhf_stack16 *stack, uint16_t data);
+GWHF_EXPORT int gwhf_pop_stack16(struct gwhf_stack16 *stack, uint16_t *data);
+GWHF_EXPORT int __gwhf_pop_stack16(struct gwhf_stack16 *stack, uint16_t *data);
 
 #ifdef __cplusplus
 } /* extern "C" */
