@@ -11,6 +11,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "common.h"
 #include "socket.h"
 #include "stack.h"
 #include <stdint.h>
@@ -58,6 +59,7 @@ struct gwhf_http_res_hdr {
 	uint32_t	buf_len;
 	uint16_t	nr_hdr_fields;
 	int16_t		status;
+	uint32_t	total_len_req;
 };
 
 enum {
@@ -90,6 +92,23 @@ struct gwhf_http_res_body {
 		struct gwhf_http_res_body_buf	buf_ref;
 	};
 };
+
+struct gwhf_client;
+
+GWHF_EXPORT const char *gwhf_http_code_to_str(int http_code);
+GWHF_EXPORT int gwhf_set_http_res_code(struct gwhf_client *cl, int http_code);
+
+__attribute__((__format__(printf, 3, 4)))
+GWHF_EXPORT int gwhf_add_http_res_hdr(struct gwhf_client *cl, const char *key,
+				      const char *vfmt, ...);
+GWHF_EXPORT int gwhf_add_http_res_body_buf(struct gwhf_client *cl,
+					   const void *buf, uint64_t len);
+GWHF_EXPORT int gwhf_set_http_res_body_buf_ref(struct gwhf_client *cl,
+					       const void *buf, uint64_t len);
+GWHF_EXPORT int gwhf_set_http_res_body_fd(struct gwhf_client *cl, int fd,
+					  uint64_t len);
+GWHF_EXPORT int gwhf_set_http_res_body_fd_ref(struct gwhf_client *cl, int fd,
+					      uint64_t len);
 
 #ifdef __cplusplus
 } /* extern "C" */

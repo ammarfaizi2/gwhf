@@ -27,6 +27,7 @@ extern "C" {
 
 struct gwhf_client_stream {
 	uint8_t		state;
+	bool		res_buf_done;
 	char		*req_buf;
 	char		*res_buf;
 
@@ -53,6 +54,7 @@ struct gwhf_client {
 	int				fd;
 	uint32_t			nr_streams;
 	struct timespec 		last_act;
+	bool				pollout_set;
 };
 
 struct gwhf_client_slot {

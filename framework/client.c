@@ -237,13 +237,8 @@ static int consume_http_req_hdr(struct gwhf *ctx, struct gwhf_client *cl)
 		str->req_buf_len = 0;
 	}
 
-	str->state = T_CL_STREAM_ROUTE_HEADER;
-	ret = gwhf_consume_client_recv_buf(ctx, cl);
-	if (unlikely(ret < 0))
-		return ret;
-
 	str->total_req_body_len += (int64_t)str->req_buf_len;
-	str->state = T_CL_STREAM_RECV_BODY;
+	str->state = T_CL_STREAM_ROUTE_HEADER;
 	return gwhf_consume_client_recv_buf(ctx, cl);
 }
 
@@ -323,21 +318,19 @@ int gwhf_consume_client_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	switch (str->state) {
 	case T_CL_STREAM_IDLE:
 	case T_CL_STREAM_RECV_HEADER:
-		printf("T_CL_STREAM_RECV_HEADER\n");
 		ret = consume_http_req_hdr(ctx, cl);
 		break;
 	case T_CL_STREAM_ROUTE_HEADER:
-		printf("T_CL_STREAM_ROUTE_HEADER\n");
 		ret = route_header(ctx, cl);
 		break;
 	case T_CL_STREAM_RECV_BODY:
-		printf("T_CL_STREAM_RECV_BODY\n");
 		ret = consume_http_req_body(ctx, cl);
 		break;
 	case T_CL_STREAM_ROUTE_BODY:
-		printf("T_CL_STREAM_ROUTE_BODY\n");
 		ret = route_body(ctx, cl);
 		break;
+	default:
+		abort();
 	}
 
 	if (ret == -EAGAIN)
@@ -346,38 +339,134 @@ int gwhf_consume_client_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	return ret;
 }
 
+static int get_client_send_body_buf(struct gwhf_client *cl,
+				    const void **buf, size_t *len)
+{
+	struct gwhf_client_stream *str = &cl->streams[0];
+	struct gwhf_http_res_body *body = &str->res_body;
+	uint32_t max_read = str->res_buf_alloc;
+	char *read_buf = str->res_buf;
+
+	str->res_buf_len = 0;
+	str->res_buf_sent = 0;
+
+	if (body->type == GWHF_HTTP_RES_BODY_BUF) {
+		*len = body->buf.len - body->off;
+		if (!*len)
+			*buf = NULL;
+		else
+			*buf = body->buf.buf + body->off;
+		return 0;
+	} else if (body->type == GWHF_HTTP_RES_BODY_BUF_REF) {
+		*len = body->buf_ref.len - body->off;
+		if (!*len)
+			*buf = NULL;
+		else
+			*buf = body->buf.buf + body->off;
+		return 0;
+	} else if (body->type == GWHF_HTTP_RES_BODY_FD) {
+		ssize_t ret;
+
+		ret = pread64(body->fd.fd, read_buf, max_read, body->off);
+		if (unlikely(ret < 0))
+			return -errno;
+
+		*buf = read_buf;
+		*len = (size_t)ret;
+		str->res_buf_done = false;
+		body->off += (uint64_t)ret;
+		return 0;
+	} else if (body->type == GWHF_HTTP_RES_BODY_FD_REF) {
+		ssize_t ret;
+
+		ret = pread64(body->fd_ref.fd, read_buf, max_read, body->off);
+		if (unlikely(ret < 0))
+			return -errno;
+
+		*buf = read_buf;
+		*len = (size_t)ret;
+		str->res_buf_done = false;
+		body->off += (uint64_t)ret;
+		return 0;
+	} else {
+		*buf = NULL;
+		*len = 0;
+		str->res_buf_done = true;
+		return 0;
+	}
+}
+
+static int __gwhf_get_client_send_buf(struct gwhf *ctx, struct gwhf_client *cl,
+				      const void **buf, size_t *len)
+{
+	struct gwhf_client_stream *str = &cl->streams[0];
+	int err;
+
+	assert(str->state != T_CL_STREAM_OFF);
+
+	if (!str->res_buf_len) {
+		err = gwhf_construct_response(cl);
+		if (err)
+			return err;
+	}
+
+	if (str->res_buf_done) {
+		err = get_client_send_body_buf(cl, buf, len);
+		if (err)
+			return err;
+	}
+
+	/*
+	 * Recheck @str->res_buf_done, because it might be set to false
+	 * by get_client_send_body_buf().
+	 */
+	if (!str->res_buf_done) {
+		*buf = str->res_buf + str->res_buf_sent;
+		*len = str->res_buf_len - str->res_buf_sent;
+	}
+
+	return 0;
+}
+
 int gwhf_get_client_send_buf(struct gwhf *ctx, struct gwhf_client *cl,
 			     const void **buf, size_t *len)
 {
-	static const char res[] = "HTTP/1.1 200 OK\r\n"
-				  "Content-Length: 13\r\n"
-				  "Connection: keep-alive\r\n"
-				  "\r\n"
-				  "Hello World!\n";
+	int ret;
 
-	if (cl->streams[0].state == T_CL_STREAM_SEND_HEADER) {
-		*buf = res;
-		*len = sizeof(res) - 1;
-		cl->streams[0].state = T_CL_STREAM_SEND_BODY;
-		return 0;
+	ret = __gwhf_get_client_send_buf(ctx, cl, buf, len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	if (!*len) {
+		struct gwhf_client_stream *str = &cl->streams[0];
+
+		str->state = T_CL_STREAM_IDLE;
+		str->res_buf_len = 0;
+		gwhf_destroy_http_res_hdr(&str->res_hdr);
+		gwhf_destroy_http_res_body(&str->res_body);
+		gwhf_destroy_http_req_hdr(&str->req_hdr);
+		gwhf_destroy_http_req_body(&str->req_body);
 	}
 
-	if (cl->streams[0].state == T_CL_STREAM_SEND_BODY) {
-		*buf = NULL;
-		*len = 0;
-		cl->streams[0].state = T_CL_STREAM_IDLE;
-		cl->streams[0].req_buf_len = 0;
-		cl->streams[0].total_req_body_len = 0;
-		gwhf_destroy_http_req_hdr(&cl->streams[0].req_hdr);
-		gwhf_destroy_http_res_hdr(&cl->streams[0].res_hdr);
-		return 0;
-	}
-
-	return -EAGAIN;
+	return 0;
 }
 
 void gwhf_client_send_buf_advance(struct gwhf_client *cl, size_t len)
 {
-	(void)cl;
-	(void)len;
+	struct gwhf_client_stream *str = &cl->streams[0];
+	struct gwhf_http_res_body *body = &str->res_body;
+
+	if (!str->res_buf_done) {
+
+		assert((uint64_t)str->res_buf_sent + len <= str->res_buf_len);
+		str->res_buf_sent += len;
+		if (str->res_buf_sent == str->res_buf_len)
+			str->res_buf_done = true;
+
+		return;
+	}
+	
+	if (body->type == GWHF_HTTP_RES_BODY_FD ||
+	    body->type == GWHF_HTTP_RES_BODY_FD_REF)
+		body->off += (uint64_t)len;
 }

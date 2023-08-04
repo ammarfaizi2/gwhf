@@ -285,6 +285,9 @@ static int handle_client_recv(struct gwhf *ctx, struct gwhf_client *cl)
 		if (unlikely(ret < 0))
 			return ret;
 
+		if (!ret)
+			break;
+
 		ret = gwhf_consume_client_recv_buf(ctx, cl);
 	} while (ret == -EAGAIN);
 
@@ -302,13 +305,15 @@ static int do_send(struct gwhf_client *cl, const void *buf, size_t len)
 	ssize_t ret;
 
 	ret = send(cl->fd, buf, len, MSG_DONTWAIT);
-	if (unlikely(ret < 0)) {
+	if (likely(ret > 0))
+		return (int)ret;
 
-		ret = -errno;
-		if (ret == -EAGAIN || ret == -EINTR)
-			return 0;
-
-		return ret;
+	ret = -errno;
+	if (ret == -EINTR)
+		return 0;
+	if (ret == -EAGAIN) {
+		/* TODO(ammarfaizi2): Handle EPOLLOUT. */
+		return 0;
 	}
 
 	return (int)ret;

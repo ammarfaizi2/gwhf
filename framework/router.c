@@ -11,6 +11,19 @@
 #include <string.h>
 #include <stdio.h>
 
+static int route_not_found(struct gwhf_client *cl)
+{
+	static const char str[] = "404 Not Found\n";
+	size_t len = sizeof(str) - 1;
+	int ret = 0;
+
+	gwhf_set_http_res_code(cl, 404);
+	ret |= gwhf_add_http_res_hdr(cl, "Content-Type", "text/plain");
+	ret |= gwhf_add_http_res_hdr(cl, "Content-Length", "%zu", len);
+	ret |= gwhf_set_http_res_body_buf_ref(cl, str, len);
+	return ret;
+}
+
 int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	(void)ctx;
@@ -21,6 +34,11 @@ int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 int gwhf_exec_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	(void)ctx;
+	int ret;
+
+	ret = route_not_found(cl);
+	if (ret)
+		return ret;
 
 	cl->streams[0].state = T_CL_STREAM_SEND_HEADER;
 	return 0;

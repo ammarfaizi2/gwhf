@@ -310,27 +310,6 @@ int gwhf_init_req_buf(struct gwhf_client_stream *stream)
 	return 0;
 }
 
-int gwhf_init_res_buf(struct gwhf_client_stream *stream)
-{
-	uint32_t alloc = 8192u;
-	char *buf;
-
-	assert(!stream->res_buf);
-	assert(!stream->res_buf_len);
-	assert(!stream->res_buf_alloc);
-	assert(!stream->res_buf_sent);
-
-	buf = malloc(alloc);
-	if (unlikely(!buf))
-		return -ENOMEM;
-
-	stream->res_buf = buf;
-	stream->res_buf_len = 0u;
-	stream->res_buf_alloc = alloc;
-	stream->res_buf_sent = 0u;
-	return 0;
-}
-
 void gwhf_destroy_req_buf(struct gwhf_client_stream *stream)
 {
 	free(stream->req_buf);
@@ -339,32 +318,13 @@ void gwhf_destroy_req_buf(struct gwhf_client_stream *stream)
 	stream->req_buf_alloc = 0u;
 }
 
-void gwhf_destroy_res_buf(struct gwhf_client_stream *stream)
-{
-	free(stream->res_buf);
-	stream->res_buf = NULL;
-	stream->res_buf_len = 0u;
-	stream->res_buf_alloc = 0u;
-	stream->res_buf_sent = 0u;
-}
-
 int gwhf_init_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 {
 	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
 	return 0;
 }
 
-int gwhf_init_http_res_hdr(struct gwhf_http_res_hdr *hdr)
-{
-	return 0;
-}
-
 int gwhf_init_http_req_body(struct gwhf_http_req_body *body)
-{
-	return 0;
-}
-
-int gwhf_init_http_res_body(struct gwhf_http_res_body *body)
 {
 	return 0;
 }
@@ -378,13 +338,5 @@ void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 }
 
 void gwhf_destroy_http_req_body(struct gwhf_http_req_body *body)
-{
-}
-
-void gwhf_destroy_http_res_hdr(struct gwhf_http_res_hdr *hdr)
-{
-}
-
-void gwhf_destroy_http_res_body(struct gwhf_http_res_body *body)
 {
 }
