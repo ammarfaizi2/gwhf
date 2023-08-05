@@ -272,7 +272,7 @@ static int do_recv(struct gwhf_client *cl)
 	return (int)ret;
 }
 
-static int handle_send_buf_after_recv(struct gwhf *ctx, struct gwhf_client *cl)
+static int handle_send_buf_after_recv(struct gwhf_client *cl)
 {
 	if (gwhf_client_has_pending_send(cl)) {
 		struct epoll_event *ev = cl_get_ev(cl);
@@ -306,7 +306,7 @@ static int handle_client_recv(struct gwhf *ctx, struct gwhf_client *cl)
 			return ret;
 		}
 
-		return handle_send_buf_after_recv(ctx, cl);
+		return handle_send_buf_after_recv(cl);
 	}
 
 	return 0;
@@ -372,7 +372,7 @@ static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
 	while (1) {
 		ret = do_send(cl);
 		if (unlikely(ret < 0)) {
-			
+
 			if (ret == -EAGAIN)
 				return handle_send_eagain(ctx, cl);
 
