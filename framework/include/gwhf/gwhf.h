@@ -125,6 +125,7 @@ struct gwhf_ev_epoll {
 
 struct gwhf {
 	volatile bool			stop;
+	bool				stop_accepting;
 
 	/*
 	 * The main TCP socket for accepting new connections.
