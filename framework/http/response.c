@@ -392,6 +392,33 @@ static bool has_res_body(struct gwhf_client *cl)
 	return (body->type != GWHF_HTTP_RES_BODY_NONE);
 }
 
+static bool should_be_kept_alive(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	const char *tmp;
+
+	tmp = gwhf_get_http_req_hdr(&stream->req_hdr, "connection");
+	if (tmp && !strcasecmp(tmp, "keep-alive"))
+		return true;
+
+	tmp = gwhf_get_http_req_version(&stream->req_hdr);
+	if (!strcmp(tmp, "HTTP/1.1"))
+		return true;
+
+	return false;
+}
+
+static int append_keep_alive_if_needed(struct gwhf_client *cl)
+{
+	if (should_be_kept_alive(cl)) {
+		cl->keep_alive = true;
+		return gwhf_add_http_res_hdr(cl, "Connection", "keep-alive");
+	} else {
+		cl->keep_alive = false;
+		return gwhf_add_http_res_hdr(cl, "Connection", "close");
+	}
+}
+
 int gwhf_construct_response(struct gwhf_client *cl)
 {
 	int ret;
@@ -402,6 +429,10 @@ int gwhf_construct_response(struct gwhf_client *cl)
 		if (unlikely(ret))
 			return ret;
 	}
+
+	ret = append_keep_alive_if_needed(cl);
+	if (unlikely(ret))
+		return ret;
 
 	ret = prepare_res_buffer(cl);
 	if (unlikely(ret))

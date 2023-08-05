@@ -363,10 +363,18 @@ int gwhf_get_send_buffer(struct gwhf_client *cl, const void **buf_p,
 	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
 
 	if (res_buf->buf_len == res_buf->off) {
+		/*
+		 * TODO(ammarfaizi2): Handle remaining response body.
+		 */
 		*buf_p = NULL;
 		*len_p = 0;
-		gwhf_soft_reset_client_stream(stream);
-		return 0;
+
+		if (cl->keep_alive) {
+			gwhf_soft_reset_client_stream(stream);
+			return 0;
+		}
+
+		return -ECONNABORTED;
 	}
 
 	*buf_p = res_buf->buf + res_buf->off;
