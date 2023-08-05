@@ -90,7 +90,7 @@ int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl);
 
 int gwhf_init_client_slot(struct gwhf *ctx);
 void gwhf_destroy_client_slot(struct gwhf *ctx);
-struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs);
+
 void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
 void gwhf_reset_client(struct gwhf_client *cl);
 

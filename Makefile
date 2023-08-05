@@ -14,13 +14,19 @@ override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include 
 override LDLIBS += -lpthread
 override LDFLAGS += -fpic -fPIC -O2 -ggdb3
 
-SANITIZE=0
+SANITIZE ?= 0
+LTO ?= 0
 
 ifeq ($(SANITIZE),1)
 override CFLAGS += -fsanitize=address
 override CXXFLAGS += -fsanitize=address
 override LDLIBS += -fsanitize=address
-override LDFLAGS += -fsanitize=address
+endif
+
+ifeq ($(LTO),1)
+override CFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
+override CXXFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
+override LDFLAGS += -flto -Wl,--gc-sections
 endif
 
 # Files
@@ -28,6 +34,7 @@ C_SRCS_FRAMEWORK := \
 	framework/ev/epoll.c \
 	framework/http/request.c \
 	framework/http/response.c \
+	framework/http/stream.c \
 	framework/client.c \
 	framework/gwhf.c \
 	framework/helpers.c \

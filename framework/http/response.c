@@ -101,21 +101,28 @@ int gwhf_add_http_res_hdr(struct gwhf_client *cl, const char *key,
 	struct gwhf_http_hdr_field_str *tmp, *hdr_fields = hdr->hdr_fields;
 	uint16_t nr_hdr_fields = hdr->nr_hdr_fields;
 	va_list ap;
+	size_t key_len;
+	size_t val_len;
 	char *kkey;
 	char *vval;
-	int err;
+	int ret;
 
-	kkey = strdup(key);
+	key_len = strlen(key);
+	kkey = malloc(key_len + 1u);
 	if (unlikely(!kkey))
 		return -ENOMEM;
 
+	memcpy(kkey, key, key_len + 1u);
+
 	va_start(ap, vfmt);
-	err = vasprintf(&vval, vfmt, ap);
+	ret = vasprintf(&vval, vfmt, ap);
 	va_end(ap);
-	if (unlikely(err < 0)) {
+	if (unlikely(ret < 0)) {
 		free(kkey);
 		return -ENOMEM;
 	}
+
+	val_len = (size_t)ret;
 
 	tmp = realloc(hdr_fields, sizeof(*hdr_fields) * (nr_hdr_fields + 1));
 	if (unlikely(!tmp)) {
@@ -129,7 +136,7 @@ int gwhf_add_http_res_hdr(struct gwhf_client *cl, const char *key,
 	hdr_fields[nr_hdr_fields].val = vval;
 	hdr->hdr_fields = hdr_fields;
 	hdr->nr_hdr_fields = nr_hdr_fields + 1;
-	hdr->total_len_req += err + strlen(kkey) + sizeof(": \r\n") - 1;
+	hdr->total_required_len += key_len + val_len + sizeof(": \r\n") - 1;
 
 	return 0;
 }
@@ -250,7 +257,7 @@ static int prepare_res_buffer(struct gwhf_client *cl, struct construct_info *ci,
 	size_needed += (size_t)snprintf(NULL, 0, "HTTP/1.1 %d %s\r\n",
 					stream->res_hdr.status, hcode_str);
 
-	size_needed += stream->res_hdr.total_len_req;
+	size_needed += stream->res_hdr.total_required_len;
 	size_needed += sizeof("\r\n") - 1;
 
 	blen = compute_res_body_len_max(&cl->streams[0].res_body, 8192);
@@ -324,104 +331,17 @@ static ssize_t copy_res_body(struct gwhf_http_res_body *body, void *buf,
 	return ret;
 }
 
-static int __gwhf_construct_response(struct gwhf_client *cl)
-{
-	struct gwhf_client_stream *stream = &cl->streams[0];
-	struct construct_info ci = {
-		.preconsumed_body_len = 0,
-		.res_buf = cl->streams[0].res_buf,
-		.res_buf_alloc = cl->streams[0].res_buf_alloc,
-	};
-	const char *hcode_str;
-	size_t alloc_len, len;
-	char *res_buf;
-	ssize_t cpret;
-	uint16_t i;
-	int err;
-
-	assert(!stream->res_buf_len);
-
-	hcode_str = gwhf_http_code_to_str(stream->res_hdr.status);
-	if (!hcode_str)
-		hcode_str = "Unknown";
-
-	err = prepare_res_buffer(cl, &ci, hcode_str);
-	if (unlikely(err))
-		return err;
-
-	stream->res_buf_len = 0;
-	stream->res_buf = res_buf = ci.res_buf;
-	stream->res_buf_alloc = alloc_len = ci.res_buf_alloc;
-
-	len = (size_t)snprintf(res_buf, alloc_len, "HTTP/1.1 %d %s\r\n",
-			       stream->res_hdr.status, hcode_str);
-
-	for (i = 0; i < stream->res_hdr.nr_hdr_fields; i++) {
-		len += (size_t)snprintf(res_buf + len, alloc_len - len,
-					"%s: %s\r\n",
-					stream->res_hdr.hdr_fields[i].key,
-					stream->res_hdr.hdr_fields[i].val);
-	}
-
-	res_buf[len++] = '\r';
-	res_buf[len++] = '\n';
-	cpret = copy_res_body(&stream->res_body, res_buf + len,
-			      alloc_len - len);
-	if (unlikely(cpret < 0)) {
-		stream->res_buf_len = 0;
-		return (int)cpret;
-	}
-
-	stream->res_buf_len = len + (size_t)cpret;
-	return 0;
-}
-
 int gwhf_construct_response(struct gwhf_client *cl)
 {
-	int ret = __gwhf_construct_response(cl);
-
-	gwhf_destroy_http_res_hdr(&cl->streams[0].res_hdr);
-	return ret;
-}
-
-int gwhf_init_res_buf(struct gwhf_client_stream *stream)
-{
-	uint32_t alloc = 8192u;
-	char *buf;
-
-	assert(!stream->res_buf);
-	assert(!stream->res_buf_len);
-	assert(!stream->res_buf_alloc);
-	assert(!stream->res_buf_sent);
-
-	buf = malloc(alloc);
-	if (unlikely(!buf))
-		return -ENOMEM;
-
-	stream->res_buf = buf;
-	stream->res_buf_len = 0u;
-	stream->res_buf_alloc = alloc;
-	stream->res_buf_sent = 0u;
 	return 0;
-}
-
-void gwhf_destroy_res_buf(struct gwhf_client_stream *stream)
-{
-	free(stream->res_buf);
-	stream->res_buf = NULL;
-	stream->res_buf_len = 0u;
-	stream->res_buf_alloc = 0u;
-	stream->res_buf_sent = 0u;
-	stream->res_buf_done = false;
 }
 
 int gwhf_init_http_res_hdr(struct gwhf_http_res_hdr *hdr)
 {
-	return 0;
-}
-
-int gwhf_init_http_res_body(struct gwhf_http_res_body *body)
-{
+	assert(!hdr->hdr_fields);
+	assert(!hdr->nr_hdr_fields);
+	assert(!hdr->status);
+	assert(!hdr->total_required_len);
 	return 0;
 }
 
@@ -429,13 +349,30 @@ void gwhf_destroy_http_res_hdr(struct gwhf_http_res_hdr *hdr)
 {
 	uint16_t i;
 
-	for (i = 0; i < hdr->nr_hdr_fields; i++) {
-		free(hdr->hdr_fields[i].key);
-		free(hdr->hdr_fields[i].val);
+	if (hdr->hdr_fields) {
+		assert(hdr->total_required_len);
+
+		for (i = 0; i < hdr->nr_hdr_fields; i++) {
+			free(hdr->hdr_fields[i].key);
+			free(hdr->hdr_fields[i].val);
+		}
+
+		free(hdr->hdr_fields);
+	} else {
+		assert(!hdr->nr_hdr_fields);
+		assert(!hdr->total_required_len);
 	}
 
-	free(hdr->hdr_fields);
 	memset(hdr, 0, sizeof(*hdr));
+}
+
+int gwhf_init_http_res_body(struct gwhf_http_res_body *body)
+{
+	assert(!body->type);
+	assert(!body->off);
+	assert(!body->callback_done);
+	assert(!body->cb_arg);
+	return 0;
 }
 
 void gwhf_destroy_http_res_body(struct gwhf_http_res_body *body)
@@ -468,4 +405,27 @@ int gwhf_set_http_res_code(struct gwhf_client *cl, int http_code)
 
 	stream->res_hdr.status = http_code;
 	return 0;
+}
+
+int gwhf_init_res_buf(struct gwhf_stream_res_buf *res_buf)
+{
+	assert(!res_buf->buf);
+	assert(!res_buf->buf_len);
+	assert(!res_buf->buf_alloc);
+	assert(!res_buf->off);
+	(void)res_buf;
+	return 0;
+}
+
+void gwhf_destroy_res_buf(struct gwhf_stream_res_buf *res_buf)
+{
+	if (res_buf->buf) {
+		assert(res_buf->buf_alloc);
+		free(res_buf->buf);
+		memset(res_buf, 0, sizeof(*res_buf));
+	} else {
+		assert(!res_buf->buf_len);
+		assert(!res_buf->buf_alloc);
+		assert(!res_buf->off);
+	}
 }

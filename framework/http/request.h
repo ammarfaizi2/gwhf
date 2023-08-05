@@ -23,12 +23,10 @@
 int gwhf_parse_http_req_hdr(const char *buf, size_t buf_len,
 			    struct gwhf_http_req_hdr *hdr);
 
-int gwhf_init_req_buf(struct gwhf_client_stream *stream);
-int gwhf_init_http_req_hdr(struct gwhf_http_req_hdr *hdr);
-int gwhf_init_http_req_body(struct gwhf_http_req_body *body);
+int gwhf_init_req_buf(struct gwhf_stream_req_buf *req_buf);
+void gwhf_destroy_req_buf(struct gwhf_stream_req_buf *req_buf);
 
-void gwhf_destroy_req_buf(struct gwhf_client_stream *stream);
+int gwhf_init_http_req_hdr(struct gwhf_http_req_hdr *hdr);
 void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr);
-void gwhf_destroy_http_req_body(struct gwhf_http_req_body *body);
 
 #endif /* GWHF__FRAMEWORK__HTTP__REQUEST_H */

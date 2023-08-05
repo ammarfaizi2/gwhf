@@ -252,94 +252,21 @@ static inline struct epoll_event *cl_get_ev(struct gwhf_client *cl)
 
 static int do_recv(struct gwhf_client *cl)
 {
-	struct gwhf_client_stream *stm = &cl->streams[0];
-	ssize_t ret;
-	size_t len;
-	char *buf;
-
-	buf = stm->req_buf + stm->req_buf_len;
-	len = stm->req_buf_alloc - stm->req_buf_len;
-	ret = recv(cl->fd, buf, len, MSG_DONTWAIT);
-	if (unlikely(ret < 0)) {
-
-		ret = -errno;
-		if (ret == -EAGAIN || ret == -EINTR)
-			return 0;
-
-		return ret;
-	}
-
-	if (ret == 0)
-		return -ECONNRESET;
-
-	stm->req_buf_len += (uint32_t)ret;
-	return (int)ret;
+	return 0;
 }
 
 static int handle_client_recv(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	int ret;
-
-	do {
-		ret = do_recv(cl);
-		if (unlikely(ret < 0))
-			return ret;
-
-		if (!ret)
-			break;
-
-		ret = gwhf_consume_client_recv_buf(ctx, cl);
-	} while (ret == -EAGAIN);
-
-	if (likely(!ret)) {
-		uint8_t state = cl->streams[0].state;
-		if (state & (T_CL_STREAM_SEND_HEADER | T_CL_STREAM_SEND_BODY))
-			cl_get_ev(cl)->events |= EPOLLOUT;
-	}
-
 	return 0;
 }
 
 static int do_send(struct gwhf_client *cl, const void *buf, size_t len)
 {
-	ssize_t ret;
-
-	ret = send(cl->fd, buf, len, MSG_DONTWAIT);
-	if (likely(ret > 0))
-		return (int)ret;
-
-	ret = -errno;
-	if (ret == -EINTR)
-		return 0;
-	if (ret == -EAGAIN) {
-		/* TODO(ammarfaizi2): Handle EPOLLOUT. */
-		return 0;
-	}
-
-	return (int)ret;
+	return 0;
 }
 
 static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	const void *buf;
-	size_t len;
-	int ret;
-
-	while (1) {
-		ret = gwhf_get_client_send_buf(ctx, cl, &buf, &len);
-		if (unlikely(ret < 0))
-			return ret;
-
-		if (!len)
-			break;
-
-		ret = do_send(cl, buf, len);
-		if (unlikely(ret < 0))
-			return ret;
-
-		gwhf_client_send_buf_advance(cl, (size_t)ret);
-	}
-
 	return 0;
 }
 

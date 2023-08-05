@@ -291,52 +291,63 @@ err:
 	return ret;
 }
 
-int gwhf_init_req_buf(struct gwhf_client_stream *stream)
+int gwhf_init_req_buf(struct gwhf_stream_req_buf *req_buf)
 {
-	uint32_t alloc = 8192u;
+	uint32_t buf_alloc = 8192u;
 	char *buf;
 
-	assert(!stream->req_buf);
-	assert(!stream->req_buf_len);
-	assert(!stream->req_buf_alloc);
+	assert(!req_buf->buf);
+	assert(!req_buf->buf_len);
+	assert(!req_buf->buf_alloc);
+	assert(!req_buf->total_req_body_len);
 
-	buf = malloc(alloc);
+	buf = malloc(buf_alloc);
 	if (unlikely(!buf))
 		return -ENOMEM;
 
-	stream->req_buf = buf;
-	stream->req_buf_len = 0u;
-	stream->req_buf_alloc = alloc;
+	req_buf->buf = buf;
+	req_buf->buf_alloc = buf_alloc;
 	return 0;
 }
 
-void gwhf_destroy_req_buf(struct gwhf_client_stream *stream)
+void gwhf_destroy_req_buf(struct gwhf_stream_req_buf *req_buf)
 {
-	free(stream->req_buf);
-	stream->req_buf = NULL;
-	stream->req_buf_len = 0u;
-	stream->req_buf_alloc = 0u;
+	if (req_buf->buf) {
+		assert(req_buf->buf_alloc);
+		free(req_buf->buf);
+		memset(req_buf, 0, sizeof(*req_buf));
+	}
 }
 
 int gwhf_init_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 {
+	assert(!hdr->buf);
+	assert(!hdr->buf_len);
+	assert(!hdr->off_method);
+	assert(!hdr->off_uri);
+	assert(!hdr->off_qs);
+	assert(!hdr->off_version);
+	assert(!hdr->hdr_fields);
+	assert(!hdr->nr_hdr_fields);
+	assert(hdr->content_length <= 0);
 	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
-	return 0;
-}
-
-int gwhf_init_http_req_body(struct gwhf_http_req_body *body)
-{
 	return 0;
 }
 
 void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 {
-	free(hdr->buf);
-	free(hdr->hdr_fields);
-	memset(hdr, 0, sizeof(*hdr));
-	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
-}
-
-void gwhf_destroy_http_req_body(struct gwhf_http_req_body *body)
-{
+	if (hdr->buf) {
+		assert(hdr->buf_len);
+		free(hdr->buf);
+		memset(hdr, 0, sizeof(*hdr));
+	} else {
+		assert(!hdr->buf_len);
+		assert(!hdr->off_method);
+		assert(!hdr->off_uri);
+		assert(!hdr->off_qs);
+		assert(!hdr->off_version);
+		assert(!hdr->hdr_fields);
+		assert(!hdr->nr_hdr_fields);
+		assert(hdr->content_length <= GWHF_HTTP_CONLEN_UNINITIALIZED);
+	}
 }

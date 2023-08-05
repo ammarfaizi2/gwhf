@@ -44,11 +44,6 @@ struct gwhf_http_req_hdr {
 	uint16_t	nr_hdr_fields;
 };
 
-struct gwhf_http_req_body {
-	char		*buf;
-	uint32_t	buf_len;
-};
-
 struct gwhf_http_hdr_field_str {
 	char	*key;
 	char	*val;
@@ -59,7 +54,7 @@ struct gwhf_http_res_hdr {
 	uint32_t	buf_len;
 	uint16_t	nr_hdr_fields;
 	int16_t		status;
-	uint32_t	total_len_req;
+	uint32_t	total_required_len;
 };
 
 enum {

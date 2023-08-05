@@ -25,24 +25,49 @@
 extern "C" {
 #endif
 
-struct gwhf_client_stream {
-	uint8_t		state;
-	bool		res_buf_done;
-	char		*req_buf;
-	char		*res_buf;
+struct gwhf_stream_res_buf {
+	char		*buf;
 
-	uint32_t	req_buf_alloc;
-	uint32_t	res_buf_alloc;
+	/*
+	 * The length of used bytes in @buf.
+	 */
+	uint32_t	buf_len;
 
-	uint32_t	req_buf_len;
-	uint32_t	res_buf_len;
+	/*
+	 * The number of bytes allocated for @buf.
+	 */
+	uint32_t	buf_alloc;
 
-	uint32_t	res_buf_sent;
+	/*
+	 * The number of bytes that have been sent.
+	 */
+	uint32_t	off;
+};
+
+struct gwhf_stream_req_buf {
+	char		*buf;
+
+	/*
+	 * The length of used bytes in @buf.
+	 */
+	uint32_t	buf_len;
+
+	/*
+	 * The number of bytes allocated for @buf.
+	 */
+	uint32_t	buf_alloc;
 
 	int64_t		total_req_body_len;
+};
+
+struct gwhf_client_stream {
+	uint8_t		state;
+	char		*err_str;
+
+	struct gwhf_stream_req_buf	req_buf;
+	struct gwhf_stream_res_buf	res_buf;
 
 	struct gwhf_http_req_hdr	req_hdr;
-	struct gwhf_http_req_body	req_body;
 	struct gwhf_http_res_hdr	res_hdr;
 	struct gwhf_http_res_body	res_body;
 };

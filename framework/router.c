@@ -24,6 +24,19 @@ static int route_not_found(struct gwhf_client *cl)
 	return ret;
 }
 
+static int route_internal_server_error(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	static const char str[] = "500 Internal Server Error\n";
+	size_t len = sizeof(str) - 1;
+	int ret = 0;
+
+	gwhf_set_http_res_code(cl, 500);
+	ret |= gwhf_add_http_res_hdr(cl, "Content-Type", "text/plain");
+	ret |= gwhf_add_http_res_hdr(cl, "Content-Length", "%zu", len);
+	ret |= gwhf_set_http_res_body_buf_ref(cl, str, len);
+	return ret;
+}
+
 int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	(void)ctx;
