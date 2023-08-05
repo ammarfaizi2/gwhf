@@ -209,8 +209,22 @@ int gwhf_set_http_res_body_fd_ref(struct gwhf_client *cl, int fd, uint64_t len)
 	return __gwhf_set_http_res_body_fd(cl, fd, len, false);
 }
 
-static uint64_t compute_res_body_len_max(struct gwhf_http_res_body *body,
-					 uint64_t max_len)
+static int calc_res_hdr_len(struct gwhf_http_res_hdr *hdr)
+{
+	size_t len = 0;
+
+	len += sizeof("HTTP/1.1 ") - 1;
+	len += 3; /* status code */
+	len += 1; /* space */
+	len += strlen(gwhf_http_code_to_str(hdr->status));
+	len += sizeof("\r\n") - 1;      /* first CRLF */
+	len += hdr->total_required_len; /* header fields */
+	len += sizeof("\r\n") - 1;      /* last CRLF */
+	return (int)len;
+}
+
+static uint64_t calc_res_body_len_max(struct gwhf_http_res_body *body,
+				      uint64_t max_len)
 {
 	uint64_t len;
 
@@ -240,39 +254,54 @@ static uint64_t compute_res_body_len_max(struct gwhf_http_res_body *body,
 	return len;
 }
 
-struct construct_info {
-	char		*res_buf;
-	size_t		res_buf_alloc;
-	uint32_t	preconsumed_body_len;
-};
-
-static int prepare_res_buffer(struct gwhf_client *cl, struct construct_info *ci,
-			      const char *hcode_str)
+static int prepare_res_buffer(struct gwhf_client *cl)
 {
-	struct gwhf_client_stream *stream = &cl->streams[0];
-	size_t size_needed = 0;
-	uint64_t blen;
-	char *res_buf;
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+	size_t total = 0;
 
-	size_needed += (size_t)snprintf(NULL, 0, "HTTP/1.1 %d %s\r\n",
-					stream->res_hdr.status, hcode_str);
+	total += calc_res_hdr_len(&stream->res_hdr);
+	total += calc_res_body_len_max(&stream->res_body, 8192);
 
-	size_needed += stream->res_hdr.total_required_len;
-	size_needed += sizeof("\r\n") - 1;
+	if (total > res_buf->buf_alloc) {
+		char *tmp;
 
-	blen = compute_res_body_len_max(&cl->streams[0].res_body, 8192);
-	ci->preconsumed_body_len = (uint32_t)blen;
-	size_needed += blen;
-
-	if (size_needed > ci->res_buf_alloc) {
-		res_buf = realloc(ci->res_buf, size_needed);
-		if (unlikely(!res_buf))
+		tmp = realloc(res_buf->buf, total);
+		if (unlikely(!tmp))
 			return -ENOMEM;
 
-		ci->res_buf = res_buf;
-		ci->res_buf_alloc = size_needed;
+		res_buf->buf = tmp;
+		res_buf->buf_alloc = total;
 	}
 
+	return 0;
+}
+
+static int construct_header(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+	struct gwhf_http_res_hdr *hdr = &stream->res_hdr;
+	size_t avail = res_buf->buf_alloc;
+	char *buf = res_buf->buf;
+	size_t len = 0;
+	uint16_t i;
+
+	assert(avail >= hdr->total_required_len);
+	assert(!res_buf->buf_len);
+
+	len += snprintf(buf + len, avail - len, "HTTP/1.1 %d %s\r\n",
+			hdr->status, gwhf_http_code_to_str(hdr->status));
+
+	for (i = 0; i < hdr->nr_hdr_fields; i++) {
+		len += snprintf(buf + len, avail - len, "%s: %s\r\n",
+				hdr->hdr_fields[i].key,
+				hdr->hdr_fields[i].val);
+	}
+
+	buf[len++] = '\r';
+	buf[len++] = '\n';
+	res_buf->buf_len = len;
 	return 0;
 }
 
@@ -331,8 +360,38 @@ static ssize_t copy_res_body(struct gwhf_http_res_body *body, void *buf,
 	return ret;
 }
 
+static int construct_body(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+	size_t avail = res_buf->buf_alloc - res_buf->buf_len;
+	char *buf = res_buf->buf + res_buf->buf_len;
+	int ret;
+
+	ret = copy_res_body(&stream->res_body, buf, avail);
+	if (unlikely(ret < 0))
+		return ret;
+
+	res_buf->buf_len += (size_t)ret;
+	return 0;
+}
+
 int gwhf_construct_response(struct gwhf_client *cl)
 {
+	int ret;
+
+	ret = prepare_res_buffer(cl);
+	if (unlikely(ret))
+		return ret;
+
+	ret = construct_header(cl);
+	if (unlikely(ret))
+		return ret;
+
+	ret = construct_body(cl);
+	if (unlikely(ret))
+		return ret;
+
 	return 0;
 }
 
@@ -402,6 +461,9 @@ void gwhf_destroy_http_res_body(struct gwhf_http_res_body *body)
 int gwhf_set_http_res_code(struct gwhf_client *cl, int http_code)
 {
 	struct gwhf_client_stream *stream = &cl->streams[0];
+
+	if (http_code < 100 || http_code > 599)
+		return -EINVAL;
 
 	stream->res_hdr.status = http_code;
 	return 0;

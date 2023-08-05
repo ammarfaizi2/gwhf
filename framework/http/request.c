@@ -348,6 +348,8 @@ void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 		assert(!hdr->off_version);
 		assert(!hdr->hdr_fields);
 		assert(!hdr->nr_hdr_fields);
-		assert(hdr->content_length <= GWHF_HTTP_CONLEN_UNINITIALIZED);
+		assert(hdr->content_length <= 0);
 	}
+
+	hdr->content_length = GWHF_HTTP_CONLEN_UNINITIALIZED;
 }

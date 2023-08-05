@@ -8,6 +8,7 @@
 
 #include "../internal.h"
 #include "../client.h"
+#include "../stream.h"
 
 int gwhf_validate_and_adjust_init_arg_ev_epoll(struct gwhf_init_arg *arg);
 int gwhf_init_ev_epoll(struct gwhf *ctx);

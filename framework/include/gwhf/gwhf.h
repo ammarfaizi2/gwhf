@@ -78,8 +78,10 @@ struct gwhf_client {
 	struct sockaddr_gwhf		addr;
 	int				fd;
 	uint32_t			nr_streams;
+	uint32_t			cur_stream;
 	struct timespec 		last_act;
 	bool				pollout_set;
+	bool				keep_alive;
 };
 
 struct gwhf_client_slot {

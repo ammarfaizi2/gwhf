@@ -39,8 +39,11 @@ static int route_internal_server_error(struct gwhf *ctx, struct gwhf_client *cl)
 
 int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+
 	(void)ctx;
 	(void)cl;
+
 	return 0;
 }
 

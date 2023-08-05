@@ -252,22 +252,139 @@ static inline struct epoll_event *cl_get_ev(struct gwhf_client *cl)
 
 static int do_recv(struct gwhf_client *cl)
 {
+	ssize_t ret;
+	size_t len;
+	char *buf;
+
+	ret = gwhf_get_recv_buffer(cl, (void **)&buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	assert(len > 0);
+	ret = recv(cl->fd, buf, len, MSG_DONTWAIT);
+	if (unlikely(ret < 0))
+		return -errno;
+
+	if (unlikely(ret == 0))
+		return -ECONNRESET;
+
+	gwhf_advance_recv_buffer(cl, (size_t)ret);
+	return (int)ret;
+}
+
+static int handle_send_buf_after_recv(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	if (gwhf_client_has_pending_send(cl)) {
+		struct epoll_event *ev = cl_get_ev(cl);
+		ev->events |= EPOLLOUT;
+	}
+
 	return 0;
 }
 
 static int handle_client_recv(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	int ret;
+
+	while (1) {
+		ret = do_recv(cl);
+		if (unlikely(ret < 0)) {
+			if (ret == -EAGAIN)
+				return 0;
+
+			if (ret == -EINTR)
+				continue;
+
+			return ret;
+		}
+
+		ret = gwhf_consume_client_recv_buf(ctx, cl);
+		if (ret < 0) {
+			if (ret == -EAGAIN)
+				continue;
+
+			return ret;
+		}
+
+		return handle_send_buf_after_recv(ctx, cl);
+	}
+
 	return 0;
 }
 
-static int do_send(struct gwhf_client *cl, const void *buf, size_t len)
+static int do_send(struct gwhf_client *cl)
 {
+	const void *buf;
+	ssize_t ret;
+	size_t len;
+
+	ret = gwhf_get_send_buffer(cl, &buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	if (!len)
+		return 0;
+
+	ret = send(cl->fd, buf, len, MSG_DONTWAIT);
+	if (unlikely(ret < 0))
+		return -errno;
+
+	if (unlikely(ret == 0))
+		return -ECONNRESET;
+
+	gwhf_advance_send_buffer(cl, (size_t)ret);
+	return (int)ret;
+}
+
+static int handle_send_eagain(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_ev_epoll *ep = &ctx->ev_epoll;
+	uint32_t tmp = EPOLLIN | EPOLLOUT;
+	union epoll_data data;
+
+	if (cl->pollout_set)
+		return 0;
+
+	cl->pollout_set = true;
+	data.ptr = cl;
+	return epoll_mod(ep->epoll_fd, cl->fd, tmp, data);
+}
+
+static int handle_send_buffer_complete(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	if (cl->pollout_set) {
+		struct gwhf_ev_epoll *ep = &ctx->ev_epoll;
+		uint32_t tmp = EPOLLIN;
+		union epoll_data data;
+
+		cl->pollout_set = false;
+		data.ptr = cl;
+		return epoll_mod(ep->epoll_fd, cl->fd, tmp, data);
+	}
+
 	return 0;
 }
 
 static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	return 0;
+	int ret;
+
+	while (1) {
+		ret = do_send(cl);
+		if (unlikely(ret < 0)) {
+			
+			if (ret == -EAGAIN)
+				return handle_send_eagain(ctx, cl);
+
+			if (ret == -EINTR)
+				continue;
+
+			return ret;
+		}
+
+		if (!gwhf_client_has_pending_send(cl))
+			return handle_send_buffer_complete(ctx, cl);
+	}
 }
 
 static int handle_client(struct gwhf *ctx, struct epoll_event *ev)

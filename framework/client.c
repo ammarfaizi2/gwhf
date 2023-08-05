@@ -7,7 +7,7 @@
 #include "client.h"
 #include "http/request.h"
 #include "http/response.h"
-#include "http/stream.h"
+#include "stream.h"
 
 static int init_client(struct gwhf_client *cl)
 {

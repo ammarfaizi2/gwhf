@@ -61,6 +61,7 @@ enum {
 
 	T_CL_STREAM_SEND_HEADER     = (1u << 5u),
 	T_CL_STREAM_SEND_BODY       = (1u << 6u),
+	T_CL_STREAM_ERROR           = (1u << 7u),
 };
 
 struct gwhf_route_header {
@@ -93,10 +94,5 @@ void gwhf_destroy_client_slot(struct gwhf *ctx);
 
 void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
 void gwhf_reset_client(struct gwhf_client *cl);
-
-int gwhf_consume_client_recv_buf(struct gwhf *ctx, struct gwhf_client *cl);
-int gwhf_get_client_send_buf(struct gwhf *ctx, struct gwhf_client *cl,
-			     const void **buf, size_t *len);
-void gwhf_client_send_buf_advance(struct gwhf_client *cl, size_t len);
 
 #endif /* #ifndef GWHF__FRAMEWORK__INTERNAL_H */

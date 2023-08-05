@@ -34,12 +34,12 @@ C_SRCS_FRAMEWORK := \
 	framework/ev/epoll.c \
 	framework/http/request.c \
 	framework/http/response.c \
-	framework/http/stream.c \
 	framework/client.c \
 	framework/gwhf.c \
 	framework/helpers.c \
 	framework/router.c \
-	framework/stack16.c
+	framework/stack16.c \
+	framework/stream.c
 
 CXX_SRCS_FRAMEWORK :=
 
