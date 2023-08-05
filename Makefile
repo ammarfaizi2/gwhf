@@ -14,7 +14,7 @@ override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include 
 override LDLIBS += -lpthread
 override LDFLAGS += -fpic -fPIC -O2 -ggdb3
 
-SANITIZE ?= 0
+SANITIZE ?= 1
 LTO ?= 0
 
 ifeq ($(SANITIZE),1)

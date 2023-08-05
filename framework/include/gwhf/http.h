@@ -105,6 +105,32 @@ GWHF_EXPORT int gwhf_set_http_res_body_fd(struct gwhf_client *cl, int fd,
 GWHF_EXPORT int gwhf_set_http_res_body_fd_ref(struct gwhf_client *cl, int fd,
 					      uint64_t len);
 
+static inline const char *gwhf_get_http_method(struct gwhf_http_req_hdr *hdr)
+{
+	return hdr->buf + hdr->off_method;
+}
+
+static inline const char *gwhf_get_http_req_uri(struct gwhf_http_req_hdr *hdr)
+{
+	return hdr->buf + hdr->off_uri;
+}
+
+static inline const char *gwhf_get_http_req_qs(struct gwhf_http_req_hdr *hdr)
+{
+	if (hdr->off_qs == (uint32_t)-1)
+		return NULL;
+
+	return hdr->buf + hdr->off_qs;
+}
+
+static inline const char *gwhf_get_http_req_version(struct gwhf_http_req_hdr *hdr)
+{
+	return hdr->buf + hdr->off_version;
+}
+
+GWHF_EXPORT const char *gwhf_get_http_req_hdr(struct gwhf_http_req_hdr *hdr,
+					      const char *key);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

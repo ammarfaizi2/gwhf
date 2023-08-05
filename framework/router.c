@@ -47,13 +47,53 @@ int gwhf_exec_route_header(struct gwhf *ctx, struct gwhf_client *cl)
 	return 0;
 }
 
+static int iterate_route_body(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_internal *it = gwhf_get_internal(ctx);
+	struct gwhf_route_body *body = it->route_body;
+	int ret = GWHF_ROUTE_CONTINUE;
+	uint16_t i;
+
+	for (i = 0; i < it->nr_route_body; i++) {
+		ret = body[i].exec_cb(ctx, cl);
+		if (ret < 0)
+			return ret;
+
+		switch (ret) {
+		case GWHF_ROUTE_EXECUTE:
+		case GWHF_ROUTE_NOT_FOUND:
+		case GWHF_ROUTE_ERROR:
+			goto out;
+		case GWHF_ROUTE_CONTINUE:
+			break;
+		}
+	}
+
+out:
+	return ret;
+}
+
 int gwhf_exec_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	(void)ctx;
 	int ret;
 
-	ret = route_not_found(cl);
-	if (ret)
+	ret = iterate_route_body(ctx, cl);
+	if (unlikely(ret < 0))
+		return ret;
+
+	switch (ret) {
+	case GWHF_ROUTE_EXECUTE:
+		break;
+	case GWHF_ROUTE_CONTINUE:
+	case GWHF_ROUTE_NOT_FOUND:
+		ret = route_not_found(cl);
+		break;
+	case GWHF_ROUTE_ERROR:
+		ret = route_internal_server_error(ctx, cl);
+		break;
+	}
+
+	if (unlikely(ret < 0))
 		return ret;
 
 	cl->streams[0].state = T_CL_STREAM_SEND_HEADER;

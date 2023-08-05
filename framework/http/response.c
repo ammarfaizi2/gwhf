@@ -376,9 +376,32 @@ static int construct_body(struct gwhf_client *cl)
 	return 0;
 }
 
+static bool has_res_headers(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	struct gwhf_http_res_hdr *hdr = &stream->res_hdr;
+
+	return (hdr->total_required_len != 0);
+}
+
+static bool has_res_body(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
+	struct gwhf_http_res_body *body = &stream->res_body;
+
+	return (body->type != GWHF_HTTP_RES_BODY_NONE);
+}
+
 int gwhf_construct_response(struct gwhf_client *cl)
 {
 	int ret;
+
+	if (!has_res_headers(cl) && !has_res_body(cl)) {
+		gwhf_set_http_res_code(cl, 204);
+		ret = gwhf_add_http_res_hdr(cl, "Content-Length", "0");
+		if (unlikely(ret))
+			return ret;
+	}
 
 	ret = prepare_res_buffer(cl);
 	if (unlikely(ret))

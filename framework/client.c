@@ -67,6 +67,10 @@ void gwhf_destroy_client_slot(struct gwhf *ctx)
 
 	for (i = 0; i < cs->stack.size; i++)
 		destroy_client(cs->clients + cs->stack.data[i]);
+
+	gwhf_destroy_stack16(&cs->stack);
+	free(cs->clients);
+	cs->clients = NULL;
 }
 
 __hot
@@ -87,7 +91,7 @@ struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs)
 	assert(!cl->nr_streams);
 	assert(!cl->pollout_set);
 
-	ret = gwhf_init_client_streams(cl, 1);
+	ret = gwhf_init_client_streams(cl, 1);          
 	if (ret) {
 		gwhf_push_stack16(&cs->stack, idx);
 		return GWHF_ERR_PTR(ret);

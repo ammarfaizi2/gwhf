@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 __hot
 static int parse_method_uri_version_qs(char *buf, char **second_line,
@@ -291,6 +292,26 @@ err:
 	return ret;
 }
 
+const char *gwhf_get_http_req_hdr(struct gwhf_http_req_hdr *hdr,
+				  const char *key)
+{
+	struct gwhf_http_hdr_field_off *fields;
+	uint16_t i, nr_fields;
+
+	if (!hdr->hdr_fields)
+		return NULL;
+
+	fields = hdr->hdr_fields;
+	nr_fields = hdr->nr_hdr_fields;
+
+	for (i = 0; i < nr_fields; i++) {
+		if (!strcmp(&hdr->buf[fields[i].off_key], key))
+			return &hdr->buf[fields[i].off_val];
+	}
+
+	return NULL;
+}
+
 int gwhf_init_req_buf(struct gwhf_stream_req_buf *req_buf)
 {
 	uint32_t buf_alloc = 8192u;
@@ -339,6 +360,10 @@ void gwhf_destroy_http_req_hdr(struct gwhf_http_req_hdr *hdr)
 	if (hdr->buf) {
 		assert(hdr->buf_len);
 		free(hdr->buf);
+		if (hdr->hdr_fields) {
+			assert(hdr->nr_hdr_fields);
+			free(hdr->hdr_fields);
+		}
 		memset(hdr, 0, sizeof(*hdr));
 	} else {
 		assert(!hdr->buf_len);

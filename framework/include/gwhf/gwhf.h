@@ -148,6 +148,13 @@ struct gwhf {
 	struct sigaction		old_act[3];
 };
 
+enum {
+	GWHF_ROUTE_CONTINUE  = 0,
+	GWHF_ROUTE_EXECUTE   = 1,
+	GWHF_ROUTE_ERROR     = 2,
+	GWHF_ROUTE_NOT_FOUND = 3,
+};
+
 GWHF_EXPORT int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg);
 GWHF_EXPORT int gwhf_init(struct gwhf *ctx);
 GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
