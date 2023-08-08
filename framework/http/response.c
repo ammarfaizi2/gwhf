@@ -514,7 +514,7 @@ void gwhf_destroy_http_res_body(struct gwhf_http_res_body *body)
 
 int gwhf_set_http_res_code(struct gwhf_client *cl, int http_code)
 {
-	struct gwhf_client_stream *stream = &cl->streams[0];
+	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
 
 	if (http_code < 100 || http_code > 599)
 		return -EINVAL;

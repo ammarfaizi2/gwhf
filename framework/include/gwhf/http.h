@@ -105,7 +105,7 @@ GWHF_EXPORT int gwhf_set_http_res_body_fd(struct gwhf_client *cl, int fd,
 GWHF_EXPORT int gwhf_set_http_res_body_fd_ref(struct gwhf_client *cl, int fd,
 					      uint64_t len);
 
-static inline const char *gwhf_get_http_method(struct gwhf_http_req_hdr *hdr)
+static inline const char *gwhf_get_http_req_method(struct gwhf_http_req_hdr *hdr)
 {
 	return hdr->buf + hdr->off_method;
 }

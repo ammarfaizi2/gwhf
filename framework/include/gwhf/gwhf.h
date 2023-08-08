@@ -84,6 +84,12 @@ struct gwhf_client {
 	bool				keep_alive;
 };
 
+static inline
+struct gwhf_client_stream *gwhf_get_cur_stream(struct gwhf_client *cl)
+{
+	return &cl->streams[cl->cur_stream];
+}
+
 struct gwhf_client_slot {
 	struct gwhf_client	*clients;
 	struct gwhf_stack16	stack;
@@ -162,9 +168,11 @@ GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
 
 GWHF_EXPORT int gwhf_add_route_header(struct gwhf *ctx,
-			int (*callback)(struct gwhf *, struct gwhf_client *));
+	int (*callback)(struct gwhf *, struct gwhf_client *, void *),
+	void *data);
 GWHF_EXPORT int gwhf_add_route_body(struct gwhf *ctx,
-			int (*callback)(struct gwhf *, struct gwhf_client *));
+	int (*callback)(struct gwhf *, struct gwhf_client *, void *),
+	void *data);
 
 #ifdef __cplusplus
 } /* extern "C" */

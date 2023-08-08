@@ -65,11 +65,13 @@ enum {
 };
 
 struct gwhf_route_header {
-	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl);
+	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *data);
+	void	*data;
 };
 
 struct gwhf_route_body {
-	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl);
+	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *data);
+	void	*data;
 };
 
 struct gwhf_internal {
