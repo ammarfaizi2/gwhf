@@ -45,8 +45,21 @@ void FileFd::close(void)
 
 int FileFd::get_fd(void)
 {
-	if (unlikely(fd_ < 0))
+	if (unlikely(fd_ < 0)) {
 		return open();
+	} else {
+		struct stat st;
+
+		if (unlikely(::fstat(fd_, &st) < 0)) {
+			close();
+			return open();
+		}
+
+		if (unlikely(size_ != static_cast<uint64_t>(st.st_size))) {
+			close();
+			return open();
+		}
+	}
 
 	return fd_;
 }
@@ -97,8 +110,23 @@ void FileMap::close(void)
 
 uint8_t *FileMap::get_map(void)
 {
-	if (!map_)
+	if (unlikely(!map_)) {
 		open();
+	} else {
+		struct stat st;
+
+		if (unlikely(::stat(path_.c_str(), &st) < 0)) {
+			close();
+			open();
+			return map_;
+		}
+
+		if (unlikely(size_ != static_cast<uint64_t>(st.st_size))) {
+			close();
+			open();
+			return map_;
+		}
+	}
 
 	return map_;
 }
