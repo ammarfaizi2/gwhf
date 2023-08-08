@@ -356,6 +356,100 @@ int gwhf_consume_client_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	return consume_stream_buf(ctx, cl);
 }
 
+static void resize_buffer_for_file(struct gwhf_client_stream *stream,
+				   uint64_t len)
+{
+	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+	uint64_t new_alloc;
+	char *tmp;
+
+	new_alloc = len;
+	if (new_alloc > UINT16_MAX*64)
+		new_alloc = UINT16_MAX*64;
+
+	if (new_alloc == res_buf->buf_alloc)
+		return;
+
+	if (new_alloc < 4096u)
+		new_alloc = 4096u;
+
+	tmp = realloc(res_buf->buf, new_alloc);
+	if (!tmp)
+		return;
+
+	res_buf->buf = tmp;
+	res_buf->buf_alloc = new_alloc;
+}
+
+static int get_send_buffer_body(struct gwhf_client *cl, const void **buf_p,
+				size_t *len_p)
+{
+	struct gwhf_client_stream *stream = gwhf_get_cur_stream(cl);
+	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+	struct gwhf_http_res_body *body = &stream->res_body;
+	ssize_t ret;
+
+	switch (body->type) {
+	case GWHF_HTTP_RES_BODY_NONE:
+		return -ENOBUFS;
+	case GWHF_HTTP_RES_BODY_BUF_REF:
+		*buf_p = body->buf_ref.buf + body->off;
+		*len_p = body->buf_ref.len - body->off;
+		if (*len_p > UINT16_MAX*32)
+			*len_p = UINT16_MAX*32;
+		return 0;
+	case GWHF_HTTP_RES_BODY_BUF:
+		*buf_p = body->buf.buf + body->off;
+		*len_p = body->buf.len - body->off;
+		if (*len_p > UINT16_MAX*32)
+			*len_p = UINT16_MAX*32;
+		return 0;
+	case GWHF_HTTP_RES_BODY_FD:
+		resize_buffer_for_file(stream, body->fd_ref.len - body->off);
+		ret = pread64(body->fd_ref.fd, res_buf->buf, res_buf->buf_alloc, body->off);
+		if (ret < 0)
+			return -errno;
+
+		body->off += (size_t)ret;
+		res_buf->buf_len = (size_t)ret;
+		res_buf->off = 0;
+		*buf_p = res_buf->buf;
+		*len_p = (size_t)ret;
+		return 0;
+	case GWHF_HTTP_RES_BODY_FD_REF:
+		resize_buffer_for_file(stream, body->fd.len - body->off);
+		ret = pread64(body->fd.fd, res_buf->buf, res_buf->buf_alloc, body->off);
+		if (ret < 0)
+			return -errno;
+
+		body->off += (size_t)ret;
+		res_buf->buf_len = (size_t)ret;
+		res_buf->off = 0;
+		*buf_p = res_buf->buf;
+		*len_p = (size_t)ret;
+		return 0;
+	}
+
+	return -ENOBUFS;
+}
+
+static void advance_send_buffer_body(struct gwhf_client *cl, size_t len)
+{
+	struct gwhf_client_stream *stream = gwhf_get_cur_stream(cl);
+	struct gwhf_http_res_body *body = &stream->res_body;
+
+	switch (body->type) {
+	case GWHF_HTTP_RES_BODY_BUF_REF:
+	case GWHF_HTTP_RES_BODY_BUF:
+		body->off += len;
+		return;
+	case GWHF_HTTP_RES_BODY_NONE:
+	case GWHF_HTTP_RES_BODY_FD:
+	case GWHF_HTTP_RES_BODY_FD_REF:
+		break;
+	}
+}
+
 int gwhf_get_send_buffer(struct gwhf_client *cl, const void **buf_p,
 			 size_t *len_p)
 {
@@ -363,12 +457,12 @@ int gwhf_get_send_buffer(struct gwhf_client *cl, const void **buf_p,
 	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
 
 	if (res_buf->buf_len == res_buf->off) {
-		/*
-		 * TODO(ammarfaizi2): Handle remaining response body.
-		 */
+		int ret = get_send_buffer_body(cl, buf_p, len_p);
+		if (!ret && *len_p)
+			return 0;
+
 		*buf_p = NULL;
 		*len_p = 0;
-
 		if (cl->keep_alive) {
 			gwhf_soft_reset_client_stream(stream);
 			return 0;
@@ -386,6 +480,11 @@ void gwhf_advance_send_buffer(struct gwhf_client *cl, size_t len)
 {
 	struct gwhf_client_stream *stream = &cl->streams[cl->cur_stream];
 	struct gwhf_stream_res_buf *res_buf = &stream->res_buf;
+
+	if (res_buf->buf_len == res_buf->off) {
+		advance_send_buffer_body(cl, len);
+		return;
+	}
 
 	assert(len <= res_buf->buf_len - res_buf->off);
 	res_buf->off += len;
