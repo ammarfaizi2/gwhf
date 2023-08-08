@@ -14,5 +14,7 @@ void *memdup_more(const void *src, size_t len, size_t more);
 size_t url_decode(char *str, size_t len);
 char *strtolower(char *str);
 char *strtoupper(char *str);
+const char *get_mime_type_by_ext(const char *ext);
+const char *get_file_ext(const char *path);
 
 #endif /* #ifndef GWHF__FRAMEWORK__HELPERS_H */

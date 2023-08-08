@@ -42,8 +42,9 @@ C_SRCS_FRAMEWORK := \
 	framework/stream.c
 
 CXX_SRCS_FRAMEWORK := \
+	framework/gwhfp/controller.cc \
+	framework/gwhfp/file.cc \
 	framework/gwhfp/route.cc \
-	framework/gwhfp/controller.cc
 
 C_SRCS_APP := \
 	app/main.c

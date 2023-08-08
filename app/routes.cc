@@ -14,6 +14,7 @@ static Route *init_routes_main(struct gwhf *ctx)
 	Route *r = new (std::nothrow) Route();
 
 	r->get("/", &Index::index);
+	r->get_prefix("/assets/", &Index::static_file);
 	g_main_route = r;
 	return r;
 }

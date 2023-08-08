@@ -11,6 +11,7 @@ class Index: public gwhfp::Controller {
 public:
 	using gwhfp::Controller::Controller;
 	int index(struct gwhfp_req *req);
+	int static_file(struct gwhfp_req *req);
 };
 
 } /* namespace controllers */

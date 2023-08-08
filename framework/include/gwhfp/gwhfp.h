@@ -12,6 +12,7 @@ struct gwhfp_req {
 	struct gwhf_client *cl;
 };
 
+#include <gwhfp/file.h>
 #include <gwhfp/route.h>
 #include <gwhfp/controller.h>
 
