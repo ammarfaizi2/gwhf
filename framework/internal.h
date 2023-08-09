@@ -12,6 +12,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "helpers.h"
 
 #ifndef __cold
@@ -65,11 +69,13 @@ enum {
 };
 
 struct gwhf_route_header {
-	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl);
+	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *data);
+	void	*data;
 };
 
 struct gwhf_route_body {
-	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl);
+	int	(*exec_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *data);
+	void	*data;
 };
 
 struct gwhf_internal {
@@ -81,7 +87,7 @@ struct gwhf_internal {
 
 static inline struct gwhf_internal *gwhf_get_internal(struct gwhf *ctx)
 {
-	return ctx->internal_data;
+	return (struct gwhf_internal *)ctx->internal_data;
 }
 
 void gwhf_destroy_route_header(struct gwhf_internal *it);
@@ -94,5 +100,9 @@ void gwhf_destroy_client_slot(struct gwhf *ctx);
 
 void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
 void gwhf_reset_client(struct gwhf_client *cl);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef GWHF__FRAMEWORK__INTERNAL_H */

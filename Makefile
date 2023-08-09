@@ -7,8 +7,8 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
-override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
+override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
+override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include
 
 # Libraries
 override LDLIBS += -lpthread
@@ -41,15 +41,20 @@ C_SRCS_FRAMEWORK := \
 	framework/stack16.c \
 	framework/stream.c
 
-CXX_SRCS_FRAMEWORK :=
+CXX_SRCS_FRAMEWORK := \
+	framework/gwhfp/controller.cc \
+	framework/gwhfp/file.cc \
+	framework/gwhfp/route.cc \
 
 C_SRCS_APP := \
 	app/main.c
 
-CXX_SRCS_APP :=
+CXX_SRCS_APP := \
+	app/controllers/index.cc \
+	app/routes.cc
 
-OBJS_FRAMEWORK := $(C_SRCS_FRAMEWORK:.c=.o) $(CXX_SRCS_FRAMEWORK:.cpp=.o)
-OBJS_APP := $(C_SRCS_APP:.c=.o) $(CXX_SRCS_APP:.cpp=.o)
+OBJS_FRAMEWORK := $(C_SRCS_FRAMEWORK:.c=.o) $(CXX_SRCS_FRAMEWORK:.cc=.o)
+OBJS_APP := $(C_SRCS_APP:.c=.o) $(CXX_SRCS_APP:.cc=.o)
 DEPS := $(OBJS_FRAMEWORK:.o=.o.d) $(OBJS_APP:.o=.o.d)
 
 all: main
@@ -59,6 +64,8 @@ main: libgwhf.so $(OBJS_APP)
 
 libgwhf.so: $(OBJS_FRAMEWORK)
 	$(CXX) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
+
+-include $(DEPS)
 
 clean:
 	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) libgwhf.so main

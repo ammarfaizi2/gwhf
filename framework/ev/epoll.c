@@ -158,6 +158,12 @@ static int poll_events(struct gwhf *ctx)
 	return ret;
 }
 
+static int handle_too_many_files(struct gwhf *ctx)
+{
+	ctx->stop_accepting = true;
+	return epoll_del(ctx->ev_epoll.epoll_fd, ctx->tcp.fd);
+}
+
 static int do_accept(struct gwhf *ctx, struct sockaddr *addr, socklen_t *len,
 		     bool *got_client)
 {
@@ -172,11 +178,36 @@ static int do_accept(struct gwhf *ctx, struct sockaddr *addr, socklen_t *len,
 		if (ret == -EAGAIN || ret == -EINTR)
 			return 0;
 
+		if (ret == -ENFILE || ret == -EMFILE)
+			return handle_too_many_files(ctx);
+
 		return ret;
 	}
 
 	*got_client = true;
 	return ret;
+}
+
+static int epoll_gwhf_put_client(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	bool put_closes_fd = (cl->fd >= 0);
+
+	gwhf_put_client(&ctx->client_slot, cl);
+	if (put_closes_fd && ctx->stop_accepting) {
+		int epl_fd = ctx->ev_epoll.epoll_fd;
+		union epoll_data data;
+		int err;
+
+		data.u64 = 0;
+		err = epoll_add(epl_fd, ctx->tcp.fd, EPOLLIN, data);
+		if (err < 0) {
+			ctx->stop = true;
+			return err;
+		}
+		ctx->stop_accepting = false;
+	}
+
+	return 0;
 }
 
 static int assign_client_slot(struct gwhf *ctx, int fd,
@@ -193,7 +224,7 @@ static int assign_client_slot(struct gwhf *ctx, int fd,
 	data.ptr = cl;
 	err = epoll_add(ctx->ev_epoll.epoll_fd, fd, EPOLLIN, data);
 	if (unlikely(err < 0)) {
-		gwhf_put_client(&ctx->client_slot, cl);
+		epoll_gwhf_put_client(ctx, cl);
 		return err;
 	}
 
@@ -367,9 +398,13 @@ static int handle_send_buffer_complete(struct gwhf *ctx, struct gwhf_client *cl)
 
 static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	uint32_t try_count = 0;
 	int ret;
 
 	while (1) {
+		if (unlikely(try_count++ >= 16u))
+			return handle_send_eagain(ctx, cl);
+
 		ret = do_send(cl);
 		if (unlikely(ret < 0)) {
 
@@ -416,7 +451,7 @@ out:
 	cl->private_data = NULL;
 	if (put) {
 		err = epoll_del(ctx->ev_epoll.epoll_fd, cl->fd);
-		gwhf_put_client(&ctx->client_slot, cl);
+		epoll_gwhf_put_client(ctx, cl);
 	}
 
 	return err;

@@ -55,7 +55,7 @@ static int iterate_route_body(struct gwhf *ctx, struct gwhf_client *cl)
 	uint16_t i;
 
 	for (i = 0; i < it->nr_route_body; i++) {
-		ret = body[i].exec_cb(ctx, cl);
+		ret = body[i].exec_cb(ctx, cl, body[i].data);
 		if (ret < 0)
 			return ret;
 
@@ -115,7 +115,8 @@ void gwhf_destroy_route_body(struct gwhf_internal *it)
 }
 
 int gwhf_add_route_header(struct gwhf *ctx,
-			  int (*callback)(struct gwhf *, struct gwhf_client *))
+			  int (*callback)(struct gwhf *, struct gwhf_client *,
+					  void *), void *data)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
 	struct gwhf_route_header *hdr;
@@ -135,11 +136,13 @@ int gwhf_add_route_header(struct gwhf *ctx,
 	it->route_header = hdr;
 	it->nr_route_header = (uint16_t)new_nr;
 	it->route_header[new_nr - 1].exec_cb = callback;
+	it->route_header[new_nr - 1].data = data;
 	return 0;
 }
 
 int gwhf_add_route_body(struct gwhf *ctx,
-			int (*callback)(struct gwhf *, struct gwhf_client *))
+			int (*callback)(struct gwhf *, struct gwhf_client *,
+					void *), void *data)
 {
 	struct gwhf_internal *it = gwhf_get_internal(ctx);
 	struct gwhf_route_body *body;
@@ -159,5 +162,6 @@ int gwhf_add_route_body(struct gwhf *ctx,
 	it->route_body = body;
 	it->nr_route_body = (uint16_t)new_nr;
 	it->route_body[new_nr - 1].exec_cb = callback;
+	it->route_body[new_nr - 1].data = data;
 	return 0;
 }
