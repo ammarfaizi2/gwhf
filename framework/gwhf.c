@@ -165,48 +165,46 @@ static inline socklen_t get_sockaddr_len(const struct sockaddr_gwhf *sg)
 
 static int init_tcp_socket(struct gwhf *ctx)
 {
+	const int type = SOCK_STREAM | SOCK_NONBLOCK;
 	struct gwhf_init_arg *arg = &ctx->init_arg;
 	struct sockaddr_gwhf addr;
-	int fd, err, val;
+	int err;
+#if defined(__linux__)
+	int val;
+#endif
 
 	err = fill_sockaddr_ss(&addr, arg->bind_addr, arg->bind_port);
 	if (err < 0)
 		return err;
 
-	fd = socket(addr.sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
-	if (fd < 0)
-		return -errno;
+	err = gwhf_sock_create(&ctx->tcp, addr.sa.sa_family, type, 0);
+	if (err < 0)
+		return err;
 
+#if defined(__linux__)
 	val = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+	setsockopt(ctx->tcp.fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+	setsockopt(ctx->tcp.fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+#endif
 
-	err = bind(fd, (struct sockaddr *)&addr, get_sockaddr_len(&addr));
-	if (err < 0) {
-		err = -errno;
+	err = gwhf_sock_bind(&ctx->tcp, &addr, get_sockaddr_len(&addr));
+	if (err < 0)
 		goto out_err;
-	}
 
-	err = listen(fd, arg->listen_backlog);
-	if (err < 0) {
-		err = -errno;
+	err = gwhf_sock_listen(&ctx->tcp, arg->listen_backlog);
+	if (err < 0)
 		goto out_err;
-	}
 
-	ctx->tcp.fd = fd;
 	return 0;
 
 out_err:
-	close(fd);
+	gwhf_sock_close(&ctx->tcp);
 	return err;
 }
 
 static void destroy_tcp_socket(struct gwhf *ctx)
 {
-	if (ctx->tcp.fd >= 0) {
-		close(ctx->tcp.fd);
-		ctx->tcp.fd = -1;
-	}
+	gwhf_sock_close(&ctx->tcp);
 }
 
 static int init_event_loop(struct gwhf *ctx)

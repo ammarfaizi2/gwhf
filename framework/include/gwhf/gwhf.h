@@ -136,12 +136,12 @@ struct gwhf {
 	/*
 	 * The main TCP socket for accepting new connections.
 	 */
-	struct gwhf_sock_tcp		tcp;
+	struct gwhf_sock		tcp;
 
 	/*
 	 * For QUIC support later. It is not implemented yet.
 	 */
-	struct gwhf_sock_udp		udp;
+	struct gwhf_sock		udp;
 
 	struct gwhf_client_slot		client_slot;
 

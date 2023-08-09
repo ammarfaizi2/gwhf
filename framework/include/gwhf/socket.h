@@ -33,13 +33,23 @@ struct sockaddr_gwhf {
 	};
 };
 
-struct gwhf_sock_tcp {
+struct gwhf_sock {
 	int fd;
+	int type;
 };
 
-struct gwhf_sock_udp {
-	int fd;
-};
+GWHF_EXPORT int gwhf_sock_global_init(void);
+GWHF_EXPORT void gwhf_sock_global_destroy(void);
+GWHF_EXPORT int gwhf_sock_create(struct gwhf_sock *sk, int af, int type,
+				 int prot);
+GWHF_EXPORT int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
+			       socklen_t len);
+GWHF_EXPORT int gwhf_sock_listen(struct gwhf_sock *sk, int backlog);
+GWHF_EXPORT int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
+				 struct sockaddr_gwhf *sg, socklen_t *len);
+GWHF_EXPORT int gwhf_sock_connect(struct gwhf_sock *sk,
+				  struct sockaddr_gwhf *dst, socklen_t len);
+GWHF_EXPORT int gwhf_sock_close(struct gwhf_sock *sk);
 
 #ifdef __cplusplus
 } /* extern "C" */

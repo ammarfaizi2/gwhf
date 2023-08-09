@@ -34,6 +34,7 @@ C_SRCS_FRAMEWORK := \
 	framework/ev/epoll.c \
 	framework/http/request.c \
 	framework/http/response.c \
+	framework/os/linux/socket.c \
 	framework/client.c \
 	framework/gwhf.c \
 	framework/helpers.c \
