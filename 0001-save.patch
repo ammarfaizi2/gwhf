@@ -1,0 +1,384 @@
+From fce788073ed9c19b1c50379b3aa62380a3a67d89 Mon Sep 17 00:00:00 2001
+From: Ammar Faizi <ammar@hoody.email>
+Date: Wed, 9 Aug 2023 11:53:36 -0700
+Subject: [PATCH] save
+
+Signed-off-by: Ammar Faizi <ammar@hoody.email>
+---
+ Makefile                      |  59 +++++++++++--
+ framework/ev/epoll.c          |   2 +-
+ framework/include/gwhf/gwhf.h |   4 +
+ framework/os/windows/socket.c |  92 ++++++++++++++++++++
+ sock.c                        | 155 ++++++++++++++++++++++++++++++++++
+ 5 files changed, 305 insertions(+), 7 deletions(-)
+ create mode 100644 framework/os/windows/socket.c
+ create mode 100644 sock.c
+
+diff --git a/Makefile b/Makefile
+index 9a0ba60..9b40b36 100644
+--- a/Makefile
++++ b/Makefile
+@@ -18,17 +18,64 @@ SANITIZE ?= 0
+ LTO ?= 0
+ 
+ ifeq ($(SANITIZE),1)
+-override CFLAGS += -fsanitize=address
+-override CXXFLAGS += -fsanitize=address
+-override LDLIBS += -fsanitize=address
++	override CFLAGS += -fsanitize=address
++	override CXXFLAGS += -fsanitize=address
++	override LDLIBS += -fsanitize=address
+ endif
+ 
+ ifeq ($(LTO),1)
+-override CFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
+-override CXXFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
+-override LDFLAGS += -flto -Wl,--gc-sections
++	override CFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
++	override CXXFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sections
++	override LDFLAGS += -flto -Wl,--gc-sections
+ endif
+ 
++PFLAGS =
++ifeq ($(OS),Windows_NT)
++	PFLAGS += -D GWHF_OS_WIN32
++	ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
++		PFLAGS += -D GWHF_ARCH_AMD64
++	else
++		ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
++			PFLAGS += -D GWHF_ARCH_AMD64
++		endif
++		ifeq ($(PROCESSOR_ARCHITECTURE),x86)
++			PFLAGS += -D GWHF_ARCH_IA32
++		endif
++	endif
++else
++	UNAME_S := $(shell uname -s)
++	ifeq ($(UNAME_S),Linux)
++		PFLAGS += -D GWHF_OS_LINUX
++	endif
++	ifeq ($(UNAME_S),Darwin)
++		PFLAGS += -D GWHF_OS_OSX
++	endif
++	UNAME_P := $(shell uname -p)
++	ifeq ($(UNAME_P),x86_64)
++		PFLAGS += -D GWHF_ARCH_AMD64
++	endif
++	ifneq ($(filter %86,$(UNAME_P)),)
++		PFLAGS += -D GWHF_ARCH_IA32
++	endif
++	ifneq ($(filter arm%,$(UNAME_P)),)
++		PFLAGS += -D GWHF_ARCH_ARM
++	endif
++endif
++
++override CFLAGS += $(PFLAGS)
++override CXXFLAGS += $(PFLAGS)
++
++C_SRCS_FRAMEWORK = \
++	framework/ev/epoll.c \
++	framework/http/request.c \
++	framework/http/response.c \
++	framework/client.c \
++	framework/gwhf.c \
++	framework/helpers.c \
++	framework/router.c \
++	framework/stack16.c \
++	framework/stream.c
++
+ # Files
+ C_SRCS_FRAMEWORK := \
+ 	framework/ev/epoll.c \
+diff --git a/framework/ev/epoll.c b/framework/ev/epoll.c
+index c1b6a6f..6927204 100644
+--- a/framework/ev/epoll.c
++++ b/framework/ev/epoll.c
+@@ -5,9 +5,9 @@
+ 
+ #include "epoll.h"
+ 
+-#include <sys/eventfd.h>
+ #include <sys/socket.h>
+ #if defined(__linux__)
++#include <sys/eventfd.h>
+ #include <sys/epoll.h>
+ #else
+ #include "../os/windows/wepoll.h"
+diff --git a/framework/include/gwhf/gwhf.h b/framework/include/gwhf/gwhf.h
+index 22d6fb9..7d1ca58 100644
+--- a/framework/include/gwhf/gwhf.h
++++ b/framework/include/gwhf/gwhf.h
+@@ -17,7 +17,11 @@
+ #include "http.h"
+ 
+ #include <time.h>
++#if defined(__linux__)
+ #include <sys/epoll.h>
++#else
++#include "../../os/windows/wepoll.h"
++#endif
+ #include <signal.h>
+ #include <stdbool.h>
+ 
+diff --git a/framework/os/windows/socket.c b/framework/os/windows/socket.c
+new file mode 100644
+index 0000000..5354331
+--- /dev/null
++++ b/framework/os/windows/socket.c
+@@ -0,0 +1,92 @@
++
++#include <windows.h>
++#include <winsock2.h>
++#include <ws2tcpip.h>
++
++/*
++ * struct sockaddr_gwhf represents an IPv4 or IPv6 address.
++ */
++struct sockaddr_gwhf {
++	union {
++		struct sockaddr sa;
++		struct sockaddr_in sin;
++		struct sockaddr_in6 sin6;
++	};
++};
++
++struct gwhf_sock {
++	SOCKET	fd;
++	int	type;
++};
++
++#pragma comment (lib, "Ws2_32.lib")
++#pragma comment (lib, "Mswsock.lib")
++#pragma comment (lib, "AdvApi32.lib")
++
++int gwhf_sock_global_init(void)
++{
++	WSADATA wsa_data;
++	int ret;
++
++	ret = WSAStartup(MAKEWORD(2,2), &wsa_data);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
++{
++	SOCKET fd;
++
++	fd = socket(af, type, prot);
++	if (fd == INVALID_SOCKET)
++		return WSAGetLastError();
++
++	sk->fd = fd;
++	sk->type = type;
++	return 0;
++}
++
++int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
++		   socklen_t len)
++{
++	int ret;
++
++	ret = bind(sk->fd, (struct sockaddr *)sg, len);
++	if (ret == SOCKET_ERROR)
++		return WSAGetLastError();
++
++	return 0;
++}
++
++int gwhf_sock_listen(struct gwhf_sock *sk, int backlog)
++{
++	return listen(sk->fd, backlog);
++}
++
++int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
++		     struct sockaddr_gwhf *sg, socklen_t *len)
++{
++	SOCKET fd;
++
++	fd = accept(sk->fd, (struct sockaddr *)sg, len);
++	if (fd == INVALID_SOCKET)
++		return WSAGetLastError();
++
++	ret->fd = fd;
++	ret->type = sk->type;
++	return 0;
++}
++
++int gwhf_sock_connect(struct gwhf_sock *sk, struct sockaddr_gwhf *dst,
++		      socklen_t len)
++{
++	int ret;
++
++	ret = connect(sk->fd, (struct sockaddr *)dst, len);
++	if (ret == SOCKET_ERROR)
++		return WSAGetLastError();
++
++	return 0;
++}
+diff --git a/sock.c b/sock.c
+new file mode 100644
+index 0000000..c174d3d
+--- /dev/null
++++ b/sock.c
+@@ -0,0 +1,155 @@
++#define WIN32_LEAN_AND_MEAN
++
++#include <windows.h>
++#include <winsock2.h>
++#include <ws2tcpip.h>
++#include <stdlib.h>
++#include <stdio.h>
++#include <stdbool.h>
++
++#ifdef WIN32
++
++
++#else
++struct gwhf_sock {
++	int	fd;
++	int	type;
++};
++
++int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
++{
++	int fd;
++
++	fd = socket(af, type, prot);
++	if (fd < 0)
++		return -errno;
++
++	sk->fd = fd;
++	sk->type = type;
++	return 0;
++}
++#endif
++
++int __cdecl main(int argc, char **argv)
++{
++	struct gwhf_sock tcp;
++	int ret;
++
++	ret = gwhf_sock_create(&tcp, AF_INET, SOCK_STREAM, 0);
++	if (ret)
++		return ret;
++}
++
++#define qweqweqwe
++#ifdef qweqweqwe
++#define DEFAULT_BUFLEN 512
++#define DEFAULT_PORT "8444"
++
++int __cdecl main(int argc, char **argv) 
++{
++    WSADATA wsaData;
++    SOCKET ConnectSocket = INVALID_SOCKET;
++    struct addrinfo *result = NULL,
++                    *ptr = NULL,
++                    hints;
++    const char *sendbuf = "this is a test";
++    char recvbuf[DEFAULT_BUFLEN];
++    int iResult;
++    int recvbuflen = DEFAULT_BUFLEN;
++    
++    // Validate the parameters
++    if (argc != 2) {
++        printf("usage: %s server-name\n", argv[0]);
++        return 1;
++    }
++
++    // Initialize Winsock
++    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
++    if (iResult != 0) {
++        printf("WSAStartup failed with error: %d\n", iResult);
++        return 1;
++    }
++
++    ZeroMemory( &hints, sizeof(hints) );
++    hints.ai_family = AF_UNSPEC;
++    hints.ai_socktype = SOCK_STREAM;
++    hints.ai_protocol = IPPROTO_TCP;
++
++    // Resolve the server address and port
++    iResult = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &result);
++    if ( iResult != 0 ) {
++        printf("getaddrinfo failed with error: %d\n", iResult);
++        WSACleanup();
++        return 1;
++    }
++
++    // Attempt to connect to an address until one succeeds
++    for(ptr=result; ptr != NULL ;ptr=ptr->ai_next) {
++
++        // Create a SOCKET for connecting to server
++        ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, 
++            ptr->ai_protocol);
++        if (ConnectSocket == INVALID_SOCKET) {
++            printf("socket failed with error: %ld\n", WSAGetLastError());
++            WSACleanup();
++            return 1;
++        }
++
++        // Connect to server.
++        iResult = connect( ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
++        if (iResult == SOCKET_ERROR) {
++            closesocket(ConnectSocket);
++            ConnectSocket = INVALID_SOCKET;
++            continue;
++        }
++        break;
++    }
++
++    freeaddrinfo(result);
++
++    if (ConnectSocket == INVALID_SOCKET) {
++        printf("Unable to connect to server!\n");
++        WSACleanup();
++        return 1;
++    }
++
++    // Send an initial buffer
++    iResult = send( ConnectSocket, sendbuf, (int)strlen(sendbuf), 0 );
++    if (iResult == SOCKET_ERROR) {
++        printf("send failed with error: %d\n", WSAGetLastError());
++        closesocket(ConnectSocket);
++        WSACleanup();
++        return 1;
++    }
++
++    printf("Bytes Sent: %ld\n", iResult);
++
++    // shutdown the connection since no more data will be sent
++    iResult = shutdown(ConnectSocket, SD_SEND);
++    if (iResult == SOCKET_ERROR) {
++        printf("shutdown failed with error: %d\n", WSAGetLastError());
++        closesocket(ConnectSocket);
++        WSACleanup();
++        return 1;
++    }
++
++    // Receive until the peer closes the connection
++    do {
++
++        iResult = recv(ConnectSocket, recvbuf, recvbuflen, 0);
++        if ( iResult > 0 )
++            printf("Bytes received: %d\n", iResult);
++        else if ( iResult == 0 )
++            printf("Connection closed\n");
++        else
++            printf("recv failed with error: %d\n", WSAGetLastError());
++
++    } while( iResult > 0 );
++
++    // cleanup
++    closesocket(ConnectSocket);
++    WSACleanup();
++
++    return 0;
++}
++#endif
+-- 
+2.41.0.windows.1
+

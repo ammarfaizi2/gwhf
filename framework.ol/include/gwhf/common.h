@@ -7,14 +7,14 @@
 #ifndef GWHF__COMMON_H
 #define GWHF__COMMON_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-
-#if defined(__linux__)
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #ifndef GWHF_EXPORT
@@ -35,5 +35,9 @@ static inline bool GWHF_IS_ERR(const void *ptr)
 {
 	return (unsigned long)ptr > (unsigned long)-4096ul;
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef GWHF__COMMON_H */

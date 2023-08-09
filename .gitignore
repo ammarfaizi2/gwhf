@@ -6,6 +6,10 @@
 *.tmp
 *.log
 *.pid
+*.dll
+*.exe
+*.ilk
+*.pdb
 /.vscode/
 /gwhf
 /main

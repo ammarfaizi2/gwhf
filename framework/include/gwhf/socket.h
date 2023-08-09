@@ -7,14 +7,18 @@
 #ifndef GWHF__SOCKET_H
 #define GWHF__SOCKET_H
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#include <gwhf/common.h>
 
-#include <stdint.h>
+#if defined(__linux__)
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include "common.h"
+#elif defined(WIN32)
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#error "Unsupported platform"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,13 +37,29 @@ struct sockaddr_gwhf {
 	};
 };
 
-struct gwhf_sock_tcp {
-	int fd;
+#if defined(__linux__)
+struct gwhf_sock {
+	int	fd;
+	int	type;
 };
+#elif defined(WIN32)
+struct gwhf_sock {
+	SOCKET	fd;
+	int	type;
+};
+#endif
 
-struct gwhf_sock_udp {
-	int fd;
-};
+GWHF_EXPORT int gwhf_sock_global_init(void);
+GWHF_EXPORT int gwhf_sock_global_destroy(void);
+GWHF_EXPORT int gwhf_sock_create(struct gwhf_sock *sk, int af, int type,
+				 int prot);
+GWHF_EXPORT int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
+			       socklen_t len);
+GWHF_EXPORT int gwhf_sock_listen(struct gwhf_sock *sk, int backlog);
+GWHF_EXPORT int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
+				 struct sockaddr_gwhf *sg, socklen_t *len);
+GWHF_EXPORT int gwhf_sock_connect(struct gwhf_sock *sk,
+				  struct sockaddr_gwhf *dst, socklen_t len);
 
 #ifdef __cplusplus
 } /* extern "C" */
