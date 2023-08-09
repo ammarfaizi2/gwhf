@@ -398,9 +398,13 @@ static int handle_send_buffer_complete(struct gwhf *ctx, struct gwhf_client *cl)
 
 static int handle_client_send(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	uint32_t try_count = 0;
 	int ret;
 
 	while (1) {
+		if (unlikely(try_count++ >= 16u))
+			return handle_send_eagain(ctx, cl);
+
 		ret = do_send(cl);
 		if (unlikely(ret < 0)) {
 
