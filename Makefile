@@ -65,6 +65,8 @@ main: libgwhf.so $(OBJS_APP)
 libgwhf.so: $(OBJS_FRAMEWORK)
 	$(CXX) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
 
+-include $(DEPS)
+
 clean:
 	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) libgwhf.so main
 
