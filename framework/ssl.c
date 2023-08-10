@@ -6,9 +6,9 @@
 #include <string.h>
 
 #include "internal.h"
-#include "tls.h"
+#include "ssl.h"
 
-int gwhf_tls_buf_init(struct gwhf_tls_buffer *tbuf)
+int gwhf_ssl_buf_init(struct gwhf_ssl_buffer *sbuf)
 {
 	uint32_t alloc = 4096;
 	char *buf;
@@ -17,17 +17,17 @@ int gwhf_tls_buf_init(struct gwhf_tls_buffer *tbuf)
 	if (!buf)
 		return -ENOMEM;
 
-	tbuf->alloc = alloc;
-	tbuf->len = 0;
-	tbuf->buf = buf;
+	sbuf->alloc = alloc;
+	sbuf->len = 0;
+	sbuf->buf = buf;
 	return 0;
 }
 
-void gwhf_tls_buf_free(struct gwhf_tls_buffer *tbuf)
+void gwhf_ssl_buf_free(struct gwhf_ssl_buffer *sbuf)
 {
-	if (!tbuf->buf)
+	if (!sbuf->buf)
 		return;
 
-	free(tbuf->buf);
-	memset(tbuf, 0, sizeof(*tbuf));
+	free(sbuf->buf);
+	memset(sbuf, 0, sizeof(*sbuf));
 }

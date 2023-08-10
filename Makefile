@@ -87,7 +87,7 @@ C_SRCS_FRAMEWORK := \
 	framework/gwhf.c \
 	framework/stack.c \
 	framework/thread.c \
-	framework/tls.c
+	framework/ssl.c
 
 ifeq ($(GWHF_OS),windows)
 C_SRCS_FRAMEWORK += framework/ext/tinycthread/tinycthread.c

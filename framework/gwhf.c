@@ -98,7 +98,7 @@ static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 
 	wrk->ctx = ctx;
 	/*
-	 * If @wrk->id, do not create a thread. It will run on the
+	 * If @wrk->id == 0, do not create a thread. It will run on the
 	 * main thread later.
 	 */
 	if (wrk->id > 0) {

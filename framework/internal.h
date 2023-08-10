@@ -50,7 +50,7 @@
 #endif
 
 #include "thread.h"
-#include "tls.h"
+#include "ssl.h"
 
 struct gwhf_client_slot {
 	struct gwhf_stack16	*stack;

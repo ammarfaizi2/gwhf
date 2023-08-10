@@ -18,7 +18,7 @@ struct gwhf_client_stream {
 
 };
 
-struct gwhf_tls_buffer {
+struct gwhf_ssl_buffer {
 	char		*buf;
 	uint32_t	len;
 	uint32_t	alloc;
@@ -36,9 +36,9 @@ struct gwhf_client {
 	struct sockaddr_gwhf		addr;
 
 	/*
-	 * TLS buffer.
+	 * SSL buffer.
 	 */
-	struct gwhf_tls_buffer		tls_buf;
+	struct gwhf_ssl_buffer		ssl_buf;
 
 	/*
 	 * Stream array.
