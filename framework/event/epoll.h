@@ -10,6 +10,7 @@
 #if defined(__linux__)
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <unistd.h>
 typedef int epoll_t;
 typedef int evfd_t;
 

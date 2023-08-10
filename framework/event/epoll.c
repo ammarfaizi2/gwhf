@@ -3,6 +3,7 @@
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
 #include <gwhf/gwhf.h>
+#include <string.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -23,7 +24,6 @@ int validate_init_arg_ev_epoll(struct gwhf_init_arg_ev_epoll *arg)
 }
 
 #if defined(__linux__)
-
 static int register_event_fd(epoll_t epfd, evfd_t *efd)
 {
 	struct epoll_event evt;
@@ -177,7 +177,7 @@ static int close_event_fd(evfd_t *efd)
 	gwhf_sock_close(&efd->write);
 	return 0;
 }
-#endif /* #if defined(__linux__) */
+#endif /* #elif defined(_WIN32) */
 
 int gwhf_init_event_loop_worker(struct gwhf_worker *wrk)
 {
@@ -189,6 +189,7 @@ int gwhf_init_event_loop_worker(struct gwhf_worker *wrk)
 	if (epoll_fd < 0)
 		return -ENOMEM;
 
+	memset(&event_fd, 0, sizeof(event_fd));
 	err = create_event_fd(&event_fd);
 	if (err) {
 		epoll_close(epoll_fd);
