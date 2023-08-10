@@ -48,6 +48,10 @@ GWHF_EXPORT int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
 GWHF_EXPORT int gwhf_sock_connect(struct gwhf_sock *sk,
 				  struct sockaddr_gwhf *dst, socklen_t len);
 GWHF_EXPORT int gwhf_sock_close(struct gwhf_sock *sk);
+GWHF_EXPORT int gwhf_sock_recv(struct gwhf_sock *sk, void *buf, size_t len,
+			       int flags);
+GWHF_EXPORT int gwhf_sock_send(struct gwhf_sock *sk, const void *buf,
+			       size_t len, int flags);
 GWHF_EXPORT int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
 				    uint16_t port);
 

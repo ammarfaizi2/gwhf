@@ -13,6 +13,10 @@
 #include <signal.h>
 #endif
 
+#if defined(__linux__) || defined(_WIN32)
+#include "event/epoll.h"
+#endif
+
 #ifndef __cold
 #define __cold __attribute__((__cold__))
 #endif
@@ -57,6 +61,10 @@ struct gwhf_client_slot {
 };
 
 struct gwhf_worker {
+#if defined(__linux__) || defined(_WIN32)
+	epoll_t			epoll_fd;
+	evfd_t			event_fd;
+#endif
 	struct gwhf		*ctx;
 	thread_t		thread;
 	uint32_t		id;

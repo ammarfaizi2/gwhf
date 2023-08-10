@@ -90,7 +90,9 @@ C_SRCS_FRAMEWORK := \
 	framework/ssl.c
 
 ifeq ($(GWHF_OS),windows)
-C_SRCS_FRAMEWORK += framework/ext/tinycthread/tinycthread.c
+C_SRCS_FRAMEWORK += \
+	framework/ext/tinycthread/tinycthread.c \
+	framework/ext/wepoll/wepoll.c
 endif
 
 ifeq ($(GWHF_OS),linux)

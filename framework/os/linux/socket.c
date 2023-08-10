@@ -107,6 +107,29 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 	return 0;
 }
 
+int gwhf_sock_recv(struct gwhf_sock *sk, void *buf, size_t len, int flags)
+{
+	int ret;
+
+	ret = recv(sk->fd, buf, len, flags);
+	if (ret < 0)
+		return -errno;
+
+	return ret;
+}
+
+int gwhf_sock_send(struct gwhf_sock *sk, const void *buf, size_t len,
+		   int flags)
+{
+	int ret;
+
+	ret = send(sk->fd, buf, len, flags);
+	if (ret < 0)
+		return -errno;
+
+	return ret;
+}
+
 int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
 			uint16_t port)
 {

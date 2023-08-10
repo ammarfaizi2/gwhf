@@ -97,6 +97,10 @@ static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 	int ret;
 
 	wrk->ctx = ctx;
+	ret = gwhf_init_event_loop_worker(wrk);
+	if (ret)
+		return ret;
+
 	/*
 	 * If @wrk->id == 0, do not create a thread. It will run on the
 	 * main thread later.
