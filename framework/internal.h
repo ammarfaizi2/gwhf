@@ -8,7 +8,6 @@
 #include <gwhf/gwhf.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "thread.h"
 
 #if defined(__linux__)
 #include <signal.h>
@@ -49,6 +48,13 @@
 #ifndef __always_inline
 #define __always_inline __attribute__((__always_inline__))
 #endif
+
+#include "thread.h"
+#include "tls.h"
+
+struct gwhf_client_slot {
+	struct gwhf_stack16	*stack;
+};
 
 struct gwhf_worker {
 	struct gwhf		*ctx;

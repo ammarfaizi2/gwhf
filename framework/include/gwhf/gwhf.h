@@ -9,6 +9,8 @@
 
 #include <gwhf/common.h>
 #include <gwhf/socket.h>
+#include <gwhf/stack.h>
+#include <gwhf/client.h>
 
 enum {
 	GWHF_EV_DEFAULT  = 0,

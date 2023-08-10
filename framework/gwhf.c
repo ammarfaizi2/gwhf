@@ -53,10 +53,6 @@ static int gwhf_init_socket(struct gwhf *ctx)
 	if (ret)
 		return ret;
 
-	ret = gwhf_sock_global_init();
-	if (ret)
-		return ret;
-
 	ret = gwhf_sock_create(tcp, addr.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
 	if (ret)
 		goto out_err;
@@ -77,7 +73,6 @@ static int gwhf_init_socket(struct gwhf *ctx)
 
 out_err:
 	gwhf_sock_close(tcp);
-	gwhf_sock_global_destroy();
 	return ret;
 }
 
@@ -86,7 +81,6 @@ static void gwhf_destroy_socket(struct gwhf *ctx)
 	struct gwhf_internal *ctxi = ctx->internal;
 
 	gwhf_sock_close(&ctxi->tcp);
-	gwhf_sock_global_destroy();
 }
 
 static void *gwhf_run_worker(void *arg)
@@ -139,19 +133,17 @@ static int gwhf_init_workers(struct gwhf *ctx)
 	for (i = 0; i < ctxi->nr_workers; i++) {
 		workers[i].id = i;
 		ret = gwhf_init_worker(ctx, &workers[i]);
-		if (ret)
-			goto err;
+		if (ret) {
+			while (i--)
+				gwhf_destroy_worker(&workers[i]);
+
+			free(workers);
+			return ret;
+		}
 	}
 
 	ctxi->workers = workers;
 	return 0;
-
-err:
-	for (i = 0; i < ctxi->nr_workers; i++)
-		gwhf_destroy_worker(&workers[i]);
-
-	free(workers);
-	return ret;
 }
 
 static void gwhf_destroy_workers(struct gwhf *ctx)
@@ -194,6 +186,7 @@ static int gwhf_init_internal_state(struct gwhf *ctx)
 out_socket:
 	gwhf_destroy_socket(ctx);
 	free(ctxi);
+	ctx->internal = NULL;
 	return ret;
 }
 
@@ -216,11 +209,19 @@ int gwhf_init_arg(struct gwhf *ctx, struct gwhf_init_arg *arg)
 	if (ret)
 		return ret;
 
-	ret = gwhf_init_internal_state(ctx);
+	ret = gwhf_sock_global_init();
 	if (ret)
 		return ret;
 
+	ret = gwhf_init_internal_state(ctx);
+	if (ret)
+		goto out_sock;
+
 	return 0;
+
+out_sock:
+	gwhf_sock_global_destroy();
+	return ret;
 }
 
 int gwhf_run(struct gwhf *ctx)
@@ -231,13 +232,22 @@ int gwhf_run(struct gwhf *ctx)
 __cold
 void gwhf_destroy(struct gwhf *ctx)
 {
+	struct gwhf_internal *ctxi = ctx->internal;
+
+	if (!ctxi)
+		return;
+
 	gwhf_destroy_workers(ctx);
 	gwhf_destroy_socket(ctx);
+	gwhf_sock_global_destroy();
+	free(ctxi);
+	memset(ctx, 0, sizeof(*ctx));
 }
 
 __cold
 const char *gwhf_strerror(int err)
 {
+#ifdef _WIN32
 	static __thread char __buf[8][256];
 	static __thread uint8_t idx;
 
@@ -246,4 +256,7 @@ const char *gwhf_strerror(int err)
 
 	strerror_s(buf, len, err);
 	return buf;
+#else
+	return strerror(err);
+#endif
 }

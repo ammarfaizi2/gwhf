@@ -85,7 +85,9 @@ C_SRCS_FRAMEWORK := \
 	framework/event/epoll.c \
 	framework/os/$(GWHF_OS)/socket.c \
 	framework/gwhf.c \
-	framework/thread.c
+	framework/stack.c \
+	framework/thread.c \
+	framework/tls.c
 
 ifeq ($(GWHF_OS),windows)
 C_SRCS_FRAMEWORK += framework/ext/tinycthread/tinycthread.c
