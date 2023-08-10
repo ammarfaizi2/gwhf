@@ -53,9 +53,13 @@ static int gwhf_init_socket(struct gwhf *ctx)
 	if (ret)
 		return ret;
 
-	ret = gwhf_sock_create(tcp, addr.sa.sa_family, SOCK_STREAM, 0);
+	ret = gwhf_sock_create(tcp, addr.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
 	if (ret)
-		return ret;
+		goto out_err;
+
+	ret = gwhf_sock_set_nonblock(tcp);
+	if (ret)
+		goto out_err;
 
 	ret = gwhf_sock_bind(tcp, &addr, gwhf_sock_addr_len(&addr));
 	if (ret)

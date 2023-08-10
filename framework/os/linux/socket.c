@@ -5,6 +5,7 @@
 #include <gwhf/socket.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 
 int gwhf_sock_global_init(void)
@@ -25,6 +26,21 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 		return -errno;
 
 	sk->fd = fd;
+	return 0;
+}
+
+int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
+{
+	int ret;
+
+	ret = fcntl(sk->fd, F_GETFL);
+	if (ret < 0)
+		return -errno;
+
+	ret = fcntl(sk->fd, F_SETFL, ret | O_NONBLOCK);
+	if (ret < 0)
+		return -errno;
+
 	return 0;
 }
 

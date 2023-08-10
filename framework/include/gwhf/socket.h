@@ -38,6 +38,7 @@ GWHF_EXPORT int gwhf_sock_global_init(void);
 GWHF_EXPORT void gwhf_sock_global_destroy(void);
 GWHF_EXPORT int gwhf_sock_create(struct gwhf_sock *sk, int af, int type,
 				 int prot);
+GWHF_EXPORT int gwhf_sock_set_nonblock(struct gwhf_sock *sk);
 GWHF_EXPORT int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 			       socklen_t len);
 GWHF_EXPORT int gwhf_sock_listen(struct gwhf_sock *sk, int backlog);
