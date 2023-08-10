@@ -7,13 +7,21 @@ int main(void)
 	struct gwhf ctx;
 	int ret;
 
+	ret = gwhf_global_init();
+	if (ret != 0) {
+		fprintf(stderr, "gwhf_global_init(): %s\n", gwhf_strerror(ret));
+		return 1;
+	}
+
 	ret = gwhf_init(&ctx);
 	if (ret != 0) {
-		fprintf(stderr, "gwhf_init: %s\n", gwhf_strerror(ret));
+		gwhf_global_destroy();
+		fprintf(stderr, "gwhf_init(): %s\n", gwhf_strerror(ret));
 		return 1;
 	}
 
 	ret = gwhf_run(&ctx);
 	gwhf_destroy(&ctx);
+	gwhf_global_destroy();
 	return ret;
 }

@@ -239,7 +239,6 @@ void gwhf_destroy(struct gwhf *ctx)
 
 	gwhf_destroy_workers(ctx);
 	gwhf_destroy_socket(ctx);
-	gwhf_sock_global_destroy();
 	free(ctxi);
 	memset(ctx, 0, sizeof(*ctx));
 }
@@ -259,4 +258,16 @@ const char *gwhf_strerror(int err)
 #else
 	return strerror(err);
 #endif
+}
+
+__cold
+int gwhf_global_init(void)
+{
+	return gwhf_sock_global_init();
+}
+
+__cold
+void gwhf_global_destroy(void)
+{
+	gwhf_sock_global_destroy();
 }

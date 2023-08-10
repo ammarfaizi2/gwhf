@@ -44,6 +44,8 @@ struct gwhf {
 	struct gwhf_init_arg	init_arg;
 };
 
+GWHF_EXPORT int gwhf_global_init(void);
+GWHF_EXPORT void gwhf_global_destroy(void);
 GWHF_EXPORT int gwhf_init(struct gwhf *ctx);
 GWHF_EXPORT int gwhf_init_arg(struct gwhf *ctx, struct gwhf_init_arg *arg);
 GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
