@@ -20,6 +20,7 @@
 #endif /* #if defined(__linux__) */
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifndef GWHF_EXPORT
 #define GWHF_EXPORT __attribute__((__visibility__("default")))
@@ -29,19 +30,19 @@
 extern "C" {
 #endif
 
-static inline void *GWHF_ERR_PTR(long err)
+static inline void *GWHF_ERR_PTR(intptr_t err)
 {
 	return (void *)err;
 }
 
-static inline long GWHF_PTR_ERR(const void *ptr)
+static inline intptr_t GWHF_PTR_ERR(const void *ptr)
 {
-	return (long)ptr;
+	return (intptr_t)ptr;
 }
 
 static inline bool GWHF_IS_ERR(const void *ptr)
 {
-	return (unsigned long)ptr > (unsigned long)-4096ul;
+	return (uintptr_t)ptr > (uintptr_t)-4096ul;
 }
 
 #ifdef __cplusplus

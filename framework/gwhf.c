@@ -53,6 +53,10 @@ static int gwhf_init_socket(struct gwhf *ctx)
 	if (ret)
 		return ret;
 
+	ret = gwhf_sock_global_init();
+	if (ret)
+		return ret;
+
 	ret = gwhf_sock_create(tcp, addr.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
 	if (ret)
 		goto out_err;
@@ -73,6 +77,7 @@ static int gwhf_init_socket(struct gwhf *ctx)
 
 out_err:
 	gwhf_sock_close(tcp);
+	gwhf_sock_global_destroy();
 	return ret;
 }
 
@@ -81,6 +86,7 @@ static void gwhf_destroy_socket(struct gwhf *ctx)
 	struct gwhf_internal *ctxi = ctx->internal;
 
 	gwhf_sock_close(&ctxi->tcp);
+	gwhf_sock_global_destroy();
 }
 
 static void *gwhf_run_worker(void *arg)
@@ -112,8 +118,10 @@ static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 
 static void gwhf_destroy_worker(struct gwhf_worker *wrk)
 {
-	wrk->ctx->stop = true;
-	thread_join(wrk->thread, NULL);
+	if (wrk->id > 0) {
+		wrk->ctx->stop = true;
+		thread_join(wrk->thread, NULL);
+	}
 }
 
 static int gwhf_init_workers(struct gwhf *ctx)
@@ -230,5 +238,12 @@ void gwhf_destroy(struct gwhf *ctx)
 __cold
 const char *gwhf_strerror(int err)
 {
-	return strerror(err);
+	static __thread char __buf[8][256];
+	static __thread uint8_t idx;
+
+	char *buf = __buf[idx++ % 8];
+	size_t len = sizeof(*__buf);
+
+	strerror_s(buf, len, err);
+	return buf;
 }

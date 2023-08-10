@@ -7,12 +7,12 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
-override CXXFLAGS += -fpic -fPIC -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include
+override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
+override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include
 
 # Libraries
-override LDLIBS += -lpthread
-override LDFLAGS += -fpic -fPIC -O2 -ggdb3
+override LDLIBS +=
+override LDFLAGS += -O2 -ggdb3
 
 SANITIZE ?= 0
 LTO ?= 0
@@ -70,7 +70,9 @@ else
 		SPECFLAGS += -DGWHF_ARCH_ARM
 		GWHF_ARCH := arm
 	endif
-	SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE
+	LDLIBS += -lpthread
+	LDFLAGS += -fpic -fPIC
+	SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE -fpic -fPIC
 	LIBGWHF := libgwhf.so
 	TARGET := main
 endif
@@ -86,6 +88,7 @@ C_SRCS_FRAMEWORK := \
 	framework/thread.c
 
 ifeq ($(GWHF_OS),windows)
+C_SRCS_FRAMEWORK += framework/ext/tinycthread/tinycthread.c
 endif
 
 ifeq ($(GWHF_OS),linux)
@@ -102,7 +105,7 @@ DEPS := $(OBJS_FRAMEWORK:.o=.o.d) $(OBJS_APP:.o=.o.d)
 all: $(TARGET)
 
 $(TARGET): $(OBJS_APP) $(LIBGWHF)
-	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS) -L. -lgwhf
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS_APP) $(OBJS_FRAMEWORK) $(LDLIBS)
 
 $(LIBGWHF): $(OBJS_FRAMEWORK)
 	$(CXX) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
@@ -110,6 +113,6 @@ $(LIBGWHF): $(OBJS_FRAMEWORK)
 -include $(DEPS)
 
 clean:
-	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) $(LIBGWHF) $(TARGET)
+	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) $(LIBGWHF) $(TARGET) *.dll *.ilk *.exe *.pdb
 
 .PHONY: all clean
