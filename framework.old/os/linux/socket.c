@@ -1,9 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
- */
+
 #include <gwhf/socket.h>
-#include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -25,6 +22,7 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 		return -errno;
 
 	sk->fd = fd;
+	sk->type = type;
 	return 0;
 }
 
@@ -61,6 +59,7 @@ int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
 		return -errno;
 
 	ret->fd = fd;
+	ret->type = sk->type;
 	return 0;
 }
 
@@ -89,29 +88,4 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 
 	sk->fd = -1;
 	return 0;
-}
-
-int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
-			uint16_t port)
-{
-	struct sockaddr_in6 *in6 = &sg->sin6;
-	struct sockaddr_in *in = &sg->sin;
-	int ret;
-
-	memset(sg, 0, sizeof(*sg));
-	ret = inet_pton(AF_INET6, addr, &in6->sin6_addr);
-	if (ret == 1) {
-		in6->sin6_family = AF_INET6;
-		in6->sin6_port = htons(port);
-		return 0;
-	}
-
-	ret = inet_pton(AF_INET, addr, &in->sin_addr);
-	if (ret == 1) {
-		in->sin_family = AF_INET;
-		in->sin_port = htons(port);
-		return 0;
-	}
-
-	return -EINVAL;
 }

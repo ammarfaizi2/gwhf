@@ -29,46 +29,87 @@ override CXXFLAGS += -flto -fvisibility=hidden -ffunction-sections -fdata-sectio
 override LDFLAGS += -flto -Wl,--gc-sections
 endif
 
-# Files
+ifeq ($(OS),Windows_NT)
+	SPECFLAGS += -DGWHF_OS_WIN32
+	ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
+		SPECFLAGS += -DGWHF_ARCH_AMD64
+		GWHF_ARCH := amd64
+	else
+		ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+			SPECFLAGS += -DGWHF_ARCH_AMD64
+			GWHF_ARCH := amd64
+		endif
+		ifeq ($(PROCESSOR_ARCHITECTURE),x86)
+			SPECFLAGS += -DGWHF_OS_IA32
+			GWHF_ARCH := ia32
+		endif
+	endif
+	GWHF_OS := windows
+	LIBGWHF := libgwhf.dll
+	TARGET := main.exe
+else
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S),Linux)
+		SPECFLAGS += -DGWHF_OS_LINUX
+		GWHF_OS := linux
+	endif
+	ifeq ($(UNAME_S),Darwin)
+		SPECFLAGS += -DGWHF_OS_OSX
+		GWHF_OS := osx
+	endif
+	UNAME_P := $(shell uname -p)
+	ifeq ($(UNAME_P),x86_64)
+		SPECFLAGS += -DGWHF_ARCH_AMD64
+		GWHF_ARCH := amd64
+	endif
+	ifneq ($(filter %86,$(UNAME_P)),)
+		SPECFLAGS += -DGWHF_ARCH_IA32
+		GWHF_ARCH := ia32
+	endif
+	ifneq ($(filter arm%,$(UNAME_P)),)
+		SPECFLAGS += -DGWHF_ARCH_ARM
+		GWHF_ARCH := arm
+	endif
+	SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE
+	LIBGWHF := libgwhf.so
+	TARGET := main
+endif
+
+override CFLAGS += $(SPECFLAGS)
+override CXXFLAGS += $(SPECFLAGS)
+
+# Sources
 C_SRCS_FRAMEWORK := \
-	framework/ev/epoll.c \
-	framework/http/request.c \
-	framework/http/response.c \
-	framework/os/linux/socket.c \
-	framework/client.c \
+	framework/event/epoll.c \
+	framework/os/$(GWHF_OS)/socket.c \
 	framework/gwhf.c \
-	framework/helpers.c \
-	framework/router.c \
-	framework/stack16.c \
-	framework/stream.c
+	framework/thread.c
 
-CXX_SRCS_FRAMEWORK := \
-	framework/gwhfp/controller.cc \
-	framework/gwhfp/file.cc \
-	framework/gwhfp/route.cc \
+ifeq ($(GWHF_OS),windows)
+endif
 
-C_SRCS_APP := \
-	app/main.c
+ifeq ($(GWHF_OS),linux)
+	C_SRCS_FRAMEWORK += framework/os/linux/signal.c
+endif
 
-CXX_SRCS_APP := \
-	app/controllers/index.cc \
-	app/routes.cc
+C_SRCS_APP := app/main.c
 
+# Objects
 OBJS_FRAMEWORK := $(C_SRCS_FRAMEWORK:.c=.o) $(CXX_SRCS_FRAMEWORK:.cc=.o)
 OBJS_APP := $(C_SRCS_APP:.c=.o) $(CXX_SRCS_APP:.cc=.o)
 DEPS := $(OBJS_FRAMEWORK:.o=.o.d) $(OBJS_APP:.o=.o.d)
 
-all: main
+all: $(TARGET)
 
-main: libgwhf.so $(OBJS_APP)
+$(TARGET): $(OBJS_APP) $(LIBGWHF)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS) -L. -lgwhf
 
-libgwhf.so: $(OBJS_FRAMEWORK)
+$(LIBGWHF): $(OBJS_FRAMEWORK)
 	$(CXX) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
 
 -include $(DEPS)
 
 clean:
-	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) libgwhf.so main
+	rm -f $(OBJS_FRAMEWORK) $(OBJS_APP) $(DEPS) $(LIBGWHF) $(TARGET)
 
 .PHONY: all clean

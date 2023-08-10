@@ -1,281 +1,188 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
- * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
-
-#include "internal.h"
-#include "ev/epoll.h"
-#include "http/request.h"
-#include "http/response.h"
-
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#include <gwhf/gwhf.h>
 #include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <assert.h>
-#include <signal.h>
 #include <stdio.h>
 
-/*
- * For signal handler only.
- */
-static struct gwhf *g_gwhf;
+#include "internal.h"
+#include "event/epoll.h"
 
-static int validate_and_adjust_init_arg_ev(struct gwhf_init_arg *arg)
+static int validate_init_arg(struct gwhf_init_arg *arg)
 {
-	switch (arg->ev_type) {
-	case GWHF_EV_TYPE_DEFAULT:
-		arg->ev_type = GWHF_EV_TYPE_EPOLL;
-		__attribute__((__fallthrough__));
-	case GWHF_EV_TYPE_EPOLL:
-		return gwhf_validate_and_adjust_init_arg_ev_epoll(arg);
-	case GWHF_EV_TYPE_SELECT:
-	case GWHF_EV_TYPE_POLL:
-	case GWHF_EV_TYPE_KQUEUE:
-	case GWHF_EV_TYPE_IO_URING:
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static int validate_and_adjust_init_arg(struct gwhf *ctx)
-{
-	struct gwhf_init_arg *arg = &ctx->init_arg;
 	int ret;
 
-	ret = validate_and_adjust_init_arg_ev(arg);
+	if (!arg->bind_addr)
+		arg->bind_addr = "::";
+
+	if (!arg->bind_port)
+		arg->bind_port = 60443;
+
+	if (!arg->backlog)
+		arg->backlog = 128;
+
+	if (!arg->ev_type)
+		arg->ev_type = GWHF_EV_EPOLL;
+
+	if (!arg->nr_workers)
+		arg->nr_workers = 4;
+
+	/*
+	 * Currently, only epoll is supported.
+	 */
+	if (arg->ev_type != GWHF_EV_EPOLL)
+		return -EINVAL;
+
+	ret = validate_init_arg_ev_epoll(&arg->ev_epoll);
 	if (ret)
 		return ret;
 
-	if (arg->nr_clients == 0)
-		arg->nr_clients = 8192;
-
-	if (!arg->bind_addr[0])
-		memcpy(arg->bind_addr, "::", 3);
-
-	if (!arg->bind_port)
-		arg->bind_port = 8444;
-
-	if (!arg->listen_backlog)
-		arg->listen_backlog = 512;
-
 	return 0;
 }
 
-static void gwhf_signal_handler(int sig)
+static int gwhf_init_socket(struct gwhf *ctx)
 {
-	char c = '\n';
-
-	if (!g_gwhf)
-		return;
-
-	if (g_gwhf->stop)
-		return;
-
-	g_gwhf->stop = true;
-	if (write(STDERR_FILENO, &c, 1)) {
-		/* Do nothing */
-		(void)sig;
-	}
-}
-
-static int init_signal_handler(struct gwhf *ctx)
-{
-	struct sigaction sa = { .sa_handler = gwhf_signal_handler };
-	struct sigaction old;
-	int err;
-
-	g_gwhf = ctx;
-
-	err = sigaction(SIGINT, &sa, &old);
-	if (err < 0)
-		return -errno;
-
-	ctx->old_act[0] = old;
-	err = sigaction(SIGTERM, &sa, &old);
-	if (err < 0) {
-		err = -errno;
-		goto out_sigint;
-	}
-
-	ctx->old_act[1] = old;
-	sa.sa_handler = SIG_IGN;
-	err = sigaction(SIGPIPE, &sa, &old);
-	if (err < 0) {
-		err = -errno;
-		goto out_sigterm;
-	}
-
-	ctx->old_act[2] = old;
-	return 0;
-
-out_sigterm:
-	sigaction(SIGTERM, &ctx->old_act[1], NULL);
-out_sigint:
-	sigaction(SIGINT, &ctx->old_act[0], NULL);
-	return err;
-}
-
-static void revert_signal_handler(struct gwhf *ctx)
-{
-	sigaction(SIGPIPE, &ctx->old_act[2], NULL);
-	sigaction(SIGTERM, &ctx->old_act[1], NULL);
-	sigaction(SIGINT, &ctx->old_act[0], NULL);
-}
-
-static int fill_sockaddr_ss(struct sockaddr_gwhf *sg, const char *addr,
-			    uint16_t port)
-{
-	struct sockaddr_in6 *sin6 = (void *)sg;
-	struct sockaddr_in *sin = (void *)sg;
-	int err;
-
-	memset(sg, 0, sizeof(*sg));
-
-	err = inet_pton(AF_INET6, addr, &sin6->sin6_addr);
-	if (err == 1) {
-		sin6->sin6_family = AF_INET6;
-		sin6->sin6_port = htons(port);
-		return 0;
-	}
-
-	err = inet_pton(AF_INET, addr, &sin->sin_addr);
-	if (err == 1) {
-		sin->sin_family = AF_INET;
-		sin->sin_port = htons(port);
-		return 0;
-	}
-
-	return -EINVAL;
-}
-
-static inline socklen_t get_sockaddr_len(const struct sockaddr_gwhf *sg)
-{
-	switch (sg->sa.sa_family) {
-	case AF_INET:
-		return sizeof(sg->sin);
-	case AF_INET6:
-		return sizeof(sg->sin6);
-	default:
-		return 0;
-	}
-}
-
-static int init_tcp_socket(struct gwhf *ctx)
-{
-	const int type = SOCK_STREAM | SOCK_NONBLOCK;
 	struct gwhf_init_arg *arg = &ctx->init_arg;
+	struct gwhf_internal *ctxi = ctx->internal;
+	struct gwhf_sock *tcp = &ctxi->tcp;
 	struct sockaddr_gwhf addr;
-	int err;
-#if defined(__linux__)
-	int val;
-#endif
+	int ret;
 
-	err = fill_sockaddr_ss(&addr, arg->bind_addr, arg->bind_port);
-	if (err < 0)
-		return err;
+	ret = gwhf_sock_fill_addr(&addr, arg->bind_addr, arg->bind_port);
+	if (ret)
+		return ret;
 
-	err = gwhf_sock_create(&ctx->tcp, addr.sa.sa_family, type, 0);
-	if (err < 0)
-		return err;
+	ret = gwhf_sock_create(tcp, addr.sa.sa_family, SOCK_STREAM, 0);
+	if (ret)
+		return ret;
 
-#if defined(__linux__)
-	val = 1;
-	setsockopt(ctx->tcp.fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-	setsockopt(ctx->tcp.fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
-#endif
-
-	err = gwhf_sock_bind(&ctx->tcp, &addr, get_sockaddr_len(&addr));
-	if (err < 0)
+	ret = gwhf_sock_bind(tcp, &addr, gwhf_sock_addr_len(&addr));
+	if (ret)
 		goto out_err;
 
-	err = gwhf_sock_listen(&ctx->tcp, arg->listen_backlog);
-	if (err < 0)
+	ret = gwhf_sock_listen(tcp, arg->backlog);
+	if (ret)
 		goto out_err;
 
 	return 0;
 
 out_err:
-	gwhf_sock_close(&ctx->tcp);
-	return err;
+	gwhf_sock_close(tcp);
+	return ret;
 }
 
-static void destroy_tcp_socket(struct gwhf *ctx)
+static void gwhf_destroy_socket(struct gwhf *ctx)
 {
-	gwhf_sock_close(&ctx->tcp);
+	struct gwhf_internal *ctxi = ctx->internal;
+
+	gwhf_sock_close(&ctxi->tcp);
 }
 
-static int init_event_loop(struct gwhf *ctx)
+static void *gwhf_run_worker(void *arg)
 {
-	struct gwhf_init_arg *arg = &ctx->init_arg;
+	struct gwhf_worker *wrk = arg;
+	struct gwhf *ctx = wrk->ctx;
 
-	switch (arg->ev_type) {
-	case GWHF_EV_TYPE_DEFAULT:
-		assert(0);
-		return -EINVAL;
-	case GWHF_EV_TYPE_EPOLL:
-		return gwhf_init_ev_epoll(ctx);
-	case GWHF_EV_TYPE_SELECT:
-	case GWHF_EV_TYPE_POLL:
-	case GWHF_EV_TYPE_KQUEUE:
-	case GWHF_EV_TYPE_IO_URING:
-	default:
-		return -EOPNOTSUPP;
+	thread_setname(wrk->thread, "gwhf-wrk-%u", wrk->id);
+	return NULL;
+}
+
+static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
+{
+	int ret;
+
+	wrk->ctx = ctx;
+	/*
+	 * If @wrk->id, do not create a thread. It will run on the
+	 * main thread later.
+	 */
+	if (wrk->id > 0) {
+		ret = thread_create(&wrk->thread, gwhf_run_worker, wrk);
+		if (ret)
+			return ret;
 	}
-}
 
-static void destroy_event_loop(struct gwhf *ctx)
-{
-	struct gwhf_init_arg *arg = &ctx->init_arg;
-
-	switch (arg->ev_type) {
-	case GWHF_EV_TYPE_DEFAULT:
-		assert(0);
-		return;
-	case GWHF_EV_TYPE_EPOLL:
-		gwhf_destroy_ev_epoll(ctx);
-		return;
-	case GWHF_EV_TYPE_SELECT:
-	case GWHF_EV_TYPE_POLL:
-	case GWHF_EV_TYPE_KQUEUE:
-	case GWHF_EV_TYPE_IO_URING:
-	default:
-		return;
-	}
-}
-
-static int init_internal_data(struct gwhf *ctx)
-{
-	struct gwhf_internal *data;
-
-	data = calloc(1, sizeof(*data));
-	if (data == NULL)
-		return -ENOMEM;
-
-	ctx->internal_data = data;
 	return 0;
 }
 
-static void destroy_internal_data(struct gwhf *ctx)
+static void gwhf_destroy_worker(struct gwhf_worker *wrk)
 {
-	struct gwhf_internal *data = ctx->internal_data;
-
-	gwhf_destroy_route_header(data);
-	gwhf_destroy_route_body(data);
-	free(data);
+	wrk->ctx->stop = true;
+	thread_join(wrk->thread, NULL);
 }
 
-__cold noinline
-void gwhf_destroy(struct gwhf *ctx)
+static int gwhf_init_workers(struct gwhf *ctx)
 {
-	gwhf_destroy_client_slot(ctx);
-	destroy_internal_data(ctx);
-	destroy_event_loop(ctx);
-	destroy_tcp_socket(ctx);
-	revert_signal_handler(ctx);
-	memset(ctx, 0, sizeof(*ctx));
+	struct gwhf_internal *ctxi = ctx->internal;
+	struct gwhf_worker *workers;
+	uint32_t i;
+	int ret;
+
+	ctxi->nr_workers = ctx->init_arg.nr_workers;
+	workers = calloc(ctxi->nr_workers, sizeof(*workers));
+	if (!workers)
+		return -ENOMEM;
+
+	for (i = 0; i < ctxi->nr_workers; i++) {
+		workers[i].id = i;
+		ret = gwhf_init_worker(ctx, &workers[i]);
+		if (ret)
+			goto err;
+	}
+
+	ctxi->workers = workers;
+	return 0;
+
+err:
+	for (i = 0; i < ctxi->nr_workers; i++)
+		gwhf_destroy_worker(&workers[i]);
+
+	free(workers);
+	return ret;
+}
+
+static void gwhf_destroy_workers(struct gwhf *ctx)
+{
+	struct gwhf_internal *ctxi = ctx->internal;
+	struct gwhf_worker *workers = ctxi->workers;
+	uint32_t i;
+
+	if (!workers)
+		return;
+
+	for (i = 0; i < ctxi->nr_workers; i++)
+		gwhf_destroy_worker(&workers[i]);
+
+	free(workers);
+	ctxi->workers = NULL;
+}
+
+static int gwhf_init_internal_state(struct gwhf *ctx)
+{
+	struct gwhf_internal *ctxi;
+	int ret;
+
+	ctxi = calloc(1, sizeof(*ctxi));
+	if (!ctxi)
+		return -ENOMEM;
+
+	ctx->internal = ctxi;
+
+	ret = gwhf_init_socket(ctx);
+	if (ret)
+		return ret;
+
+	ret = gwhf_init_workers(ctx);
+	if (ret)
+		goto out_socket;
+
+	return ret;
+
+out_socket:
+	gwhf_destroy_socket(ctx);
+	free(ctxi);
+	return ret;
 }
 
 __cold
@@ -284,61 +191,40 @@ int gwhf_init(struct gwhf *ctx)
 	return gwhf_init_arg(ctx, NULL);
 }
 
-__cold noinline
-int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg)
+__cold
+int gwhf_init_arg(struct gwhf *ctx, struct gwhf_init_arg *arg)
 {
 	int ret;
 
 	memset(ctx, 0, sizeof(*ctx));
-
 	if (arg)
 		ctx->init_arg = *arg;
 
-	ret = validate_and_adjust_init_arg(ctx);
-	if (unlikely(ret))
+	ret = validate_init_arg(&ctx->init_arg);
+	if (ret)
 		return ret;
 
-	ret = init_signal_handler(ctx);
-	if (unlikely(ret))
+	ret = gwhf_init_internal_state(ctx);
+	if (ret)
 		return ret;
-
-	ret = init_tcp_socket(ctx);
-	if (unlikely(ret))
-		return ret;
-
-	ret = init_event_loop(ctx);
-	if (ret < 0)
-		goto out_err;
-
-	ret = init_internal_data(ctx);
-	if (ret < 0)
-		goto out_err;
-
-	ret = gwhf_init_client_slot(ctx);
-	if (ret < 0)
-		goto out_err;
 
 	return 0;
-
-out_err:
-	gwhf_destroy(ctx);
-	return ret;
 }
 
 int gwhf_run(struct gwhf *ctx)
 {
-	struct gwhf_init_arg *arg = &ctx->init_arg;
+	return 0;
+}
 
-	switch (arg->ev_type) {
-	case GWHF_EV_TYPE_DEFAULT:
-		return -EINVAL;
-	case GWHF_EV_TYPE_EPOLL:
-		return gwhf_run_ev_epoll(ctx);
-	case GWHF_EV_TYPE_SELECT:
-	case GWHF_EV_TYPE_POLL:
-	case GWHF_EV_TYPE_KQUEUE:
-	case GWHF_EV_TYPE_IO_URING:
-	default:
-		return -EOPNOTSUPP;
-	}
+__cold
+void gwhf_destroy(struct gwhf *ctx)
+{
+	gwhf_destroy_workers(ctx);
+	gwhf_destroy_socket(ctx);
+}
+
+__cold
+const char *gwhf_strerror(int err)
+{
+	return strerror(err);
 }

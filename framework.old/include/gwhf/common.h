@@ -7,26 +7,18 @@
 #ifndef GWHF__COMMON_H
 #define GWHF__COMMON_H
 
-#if defined(__linux__)
-
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 
-#ifndef POSIX_C_SOURCE
-#define POSIX_C_SOURCE 200809L
-#endif
-
-#endif /* #if defined(__linux__) */
-
 #include <stdbool.h>
-
-#ifndef GWHF_EXPORT
-#define GWHF_EXPORT __attribute__((__visibility__("default")))
-#endif
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifndef GWHF_EXPORT
+#define GWHF_EXPORT __attribute__((__visibility__("default")))
 #endif
 
 static inline void *GWHF_ERR_PTR(long err)
