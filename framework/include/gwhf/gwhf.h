@@ -38,17 +38,11 @@ struct gwhf_init_arg {
 	};
 };
 
-#ifdef GWHF_INTERNAL
 struct gwhf_internal;
-#endif
 
 struct gwhf {
 	volatile bool		stop;
-#ifdef GWHF_INTERNAL
 	struct gwhf_internal	*internal;
-#else
-	void			*internal;
-#endif
 	struct gwhf_init_arg	init_arg;
 };
 
