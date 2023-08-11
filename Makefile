@@ -7,8 +7,8 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
-override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include
+override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes -DGWHF_INTERNAL
+override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -DGWHF_INTERNAL
 
 # Libraries
 override LDLIBS +=

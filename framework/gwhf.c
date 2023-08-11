@@ -83,12 +83,33 @@ static void gwhf_destroy_socket(struct gwhf *ctx)
 	gwhf_sock_close(&ctxi->tcp);
 }
 
+static int gwhf_run_worker_ev(struct gwhf_worker *wrk)
+{
+	struct gwhf *ctx = wrk->ctx;
+	struct gwhf_init_arg *init_arg = &ctx->init_arg;
+	int ret;
+
+	switch (init_arg->ev_type) {
+	case GWHF_EV_EPOLL:
+		ret = gwhf_run_worker_ev_epoll(wrk);
+		break;
+	default:
+		ret = -EOPNOTSUPP;
+		ctx->stop = true;
+		break;
+	}
+
+	return ret;
+}
+
 static void *gwhf_run_worker(void *arg)
 {
 	struct gwhf_worker *wrk = arg;
-	struct gwhf *ctx = wrk->ctx;
 
-	thread_setname(wrk->thread, "gwhf-wrk-%u", wrk->id);
+	if (wrk->id > 0)
+		thread_setname(wrk->thread, "gwhf-wrk-%u", wrk->id);
+
+	gwhf_run_worker_ev(wrk);
 	return NULL;
 }
 
@@ -143,10 +164,9 @@ static void gwhf_destroy_worker(struct gwhf_worker *wrk)
 {
 	if (wrk->id > 0) {
 		wrk->ctx->stop = true;
+		gwhf_destroy_worker_ev(wrk);
 		thread_join(wrk->thread, NULL);
 	}
-
-	gwhf_destroy_worker_ev(wrk);
 }
 
 static int gwhf_init_workers(struct gwhf *ctx)
@@ -257,7 +277,8 @@ out_sock:
 
 int gwhf_run(struct gwhf *ctx)
 {
-	return 0;
+	struct gwhf_internal *ctxi = ctx->internal;
+	return gwhf_run_worker_ev(ctxi->workers);
 }
 
 __cold

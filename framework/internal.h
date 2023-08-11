@@ -64,6 +64,7 @@ struct gwhf_worker {
 #if defined(__linux__) || defined(_WIN32)
 	epoll_t			epoll_fd;
 	evfd_t			event_fd;
+	struct epoll_event	*events;
 #endif
 	struct gwhf		*ctx;
 	thread_t		thread;
