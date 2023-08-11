@@ -157,9 +157,10 @@ static int create_event_fd(evfd_t *efd)
 {
 	struct gwhf_sock w, r, tmp;
 	struct sockaddr_gwhf addr;
+	socklen_t len;
 	int err;
 
-	err = gwhf_sock_fill_addr(&addr, "127.0.0.1", 63121);
+	err = gwhf_sock_fill_addr(&addr, "127.0.0.1", 0);
 	if (err < 0)
 		return err;
 
@@ -187,13 +188,23 @@ static int create_event_fd(evfd_t *efd)
 	if (err < 0)
 		goto out_r;
 
-	err = gwhf_sock_connect(&r, &addr, gwhf_sock_addr_len(&addr));
+	len = gwhf_sock_addr_len(&addr);
+	err = gwhf_sock_getname(&w, &addr, &len);
 	if (err < 0)
 		goto out_r;
 
-	err = gwhf_sock_accept(&tmp, &w, NULL, NULL);
-	if (err < 0)
+	err = gwhf_sock_connect(&r, &addr, len);
+	if (err < 0 && err != WSAEINPROGRESS)
 		goto out_r;
+
+	while (1) {
+		err = gwhf_sock_accept(&tmp, &w, NULL, NULL);
+		if (!err)
+			break;
+		if (err == WSAEWOULDBLOCK)
+			continue;
+		goto out_r;
+	}
 
 	gwhf_sock_close(&w);
 	efd->read = r;

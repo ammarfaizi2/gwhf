@@ -54,6 +54,12 @@ GWHF_EXPORT int gwhf_sock_send(struct gwhf_sock *sk, const void *buf,
 			       size_t len, int flags);
 GWHF_EXPORT int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
 				    uint16_t port);
+GWHF_EXPORT int gwhf_sock_getpeername(struct gwhf_sock *sk,
+				      struct sockaddr_gwhf *sg,
+				      socklen_t *len);
+GWHF_EXPORT int gwhf_sock_getname(struct gwhf_sock *sk,
+				  struct sockaddr_gwhf *sg,
+				  socklen_t *len);
 
 static inline socklen_t gwhf_sock_addr_len(struct sockaddr_gwhf *sg)
 {
