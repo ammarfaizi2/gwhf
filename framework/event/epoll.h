@@ -32,6 +32,8 @@ typedef struct {
 struct gwhf_worker;
 
 int validate_init_arg_ev_epoll(struct gwhf_init_arg_ev_epoll *arg);
-int gwhf_init_event_loop_worker(struct gwhf_worker *wrk);
+int gwhf_init_worker_ev_epoll(struct gwhf_worker *wrk);
+int gwhf_run_worker_ev_epoll(struct gwhf_worker *wrk);
+int gwhf_destroy_worker_ev_epoll(struct gwhf_worker *wrk);
 
 #endif /* #ifndef GWHF__EVENT__EPOLL_H */

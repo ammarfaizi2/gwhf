@@ -23,6 +23,42 @@ int validate_init_arg_ev_epoll(struct gwhf_init_arg_ev_epoll *arg)
 	return 0;
 }
 
+static int epoll_add(epoll_t epfd, struct gwhf_sock *sk, uint32_t events,
+		     union epoll_data data)
+{
+	struct epoll_event ev = {
+		.events = events,
+		.data = data
+	};
+
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sk->fd, &ev) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int epoll_mod(epoll_t epfd, struct gwhf_sock *sk, uint32_t events,
+		     union epoll_data data)
+{
+	struct epoll_event ev = {
+		.events = events,
+		.data = data
+	};
+
+	if (epoll_ctl(epfd, EPOLL_CTL_MOD, sk->fd, &ev) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int epoll_del(epoll_t epfd, struct gwhf_sock *sk)
+{
+	if (epoll_ctl(epfd, EPOLL_CTL_DEL, sk->fd, NULL) < 0)
+		return -1;
+
+	return 0;
+}
+
 #if defined(__linux__)
 static int register_event_fd(epoll_t epfd, evfd_t *efd)
 {
@@ -179,8 +215,9 @@ static int close_event_fd(evfd_t *efd)
 }
 #endif /* #elif defined(_WIN32) */
 
-int gwhf_init_event_loop_worker(struct gwhf_worker *wrk)
+int gwhf_init_worker_ev_epoll(struct gwhf_worker *wrk)
 {
+	struct gwhf_internal *ctxi = wrk->ctx->internal;
 	epoll_t epoll_fd;
 	evfd_t event_fd;
 	int err;
@@ -191,19 +228,44 @@ int gwhf_init_event_loop_worker(struct gwhf_worker *wrk)
 
 	memset(&event_fd, 0, sizeof(event_fd));
 	err = create_event_fd(&event_fd);
-	if (err) {
-		epoll_close(epoll_fd);
-		return err;
-	}
+	if (err)
+		goto out_epoll;
 
 	err = register_event_fd(epoll_fd, &event_fd);
-	if (err) {
-		close_event_fd(&event_fd);
-		epoll_close(epoll_fd);
-		return err;
+	if (err)
+		goto out_event_fd;
+
+	if (wrk->id == 0) {
+		union epoll_data data;
+
+		data.u64 = 0;
+		err = epoll_add(epoll_fd, &ctxi->tcp, EPOLLIN, data);
+		if (err)
+			goto out_event_fd;
 	}
 
 	wrk->epoll_fd = epoll_fd;
 	wrk->event_fd = event_fd;
+	return 0;
+
+out_event_fd:
+	close_event_fd(&event_fd);
+out_epoll:
+	epoll_close(epoll_fd);
+	return err;
+}
+
+int gwhf_destroy_worker_ev_epoll(struct gwhf_worker *wrk)
+{
+	struct gwhf_internal *ctxi = wrk->ctx->internal;
+
+	epoll_del(wrk->epoll_fd, &ctxi->tcp);
+	close_event_fd(&wrk->event_fd);
+	epoll_close(wrk->epoll_fd);
+	return 0;
+}
+
+int gwhf_run_worker_ev_epoll(struct gwhf_worker *wrk)
+{
 	return 0;
 }

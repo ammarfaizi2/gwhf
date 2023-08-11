@@ -92,12 +92,35 @@ static void *gwhf_run_worker(void *arg)
 	return NULL;
 }
 
+static int gwhf_init_worker_ev(struct gwhf_worker *wrk)
+{
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
+
+	switch (arg->ev_type) {
+	case GWHF_EV_EPOLL:
+		return gwhf_init_worker_ev_epoll(wrk);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+static void gwhf_destroy_worker_ev(struct gwhf_worker *wrk)
+{
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
+
+	switch (arg->ev_type) {
+	case GWHF_EV_EPOLL:
+		gwhf_destroy_worker_ev_epoll(wrk);
+		break;
+	}
+}
+
 static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 {
 	int ret;
 
 	wrk->ctx = ctx;
-	ret = gwhf_init_event_loop_worker(wrk);
+	ret = gwhf_init_worker_ev(wrk);
 	if (ret)
 		return ret;
 
@@ -107,8 +130,10 @@ static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 	 */
 	if (wrk->id > 0) {
 		ret = thread_create(&wrk->thread, gwhf_run_worker, wrk);
-		if (ret)
+		if (ret) {
+			gwhf_destroy_worker_ev(wrk);
 			return ret;
+		}
 	}
 
 	return 0;
@@ -120,6 +145,8 @@ static void gwhf_destroy_worker(struct gwhf_worker *wrk)
 		wrk->ctx->stop = true;
 		thread_join(wrk->thread, NULL);
 	}
+
+	gwhf_destroy_worker_ev(wrk);
 }
 
 static int gwhf_init_workers(struct gwhf *ctx)
