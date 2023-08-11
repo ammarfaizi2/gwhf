@@ -132,6 +132,30 @@ int gwhf_sock_send(struct gwhf_sock *sk, const void *buf, size_t len,
 	return ret;
 }
 
+int gwhf_sock_getname(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
+		      socklen_t *len)
+{
+	int ret;
+
+	ret = getsockname(sk->fd, (struct sockaddr *)sg, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return 0;
+}
+
+int gwhf_sock_getpeername(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
+			  socklen_t *len)
+{
+	int ret;
+
+	ret = getpeername(sk->fd, (struct sockaddr *)sg, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return 0;
+}
+
 int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
 			uint16_t port)
 {
