@@ -7,8 +7,8 @@ override CFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 override CXXFLAGS += -MT "$@" -MMD -MP -MF "$@.d"
 
 # Flags
-override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include -Wmissing-prototypes -Wstrict-prototypes
-override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/include
+override CFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/gwhf/include -Wmissing-prototypes -Wstrict-prototypes
+override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/gwhf/include
 
 # Libraries
 override LDLIBS +=
@@ -82,21 +82,25 @@ override CXXFLAGS += $(SPECFLAGS)
 
 # Sources
 C_SRCS_FRAMEWORK := \
-	framework/event/epoll.c \
-	framework/os/$(GWHF_OS)/socket.c \
-	framework/gwhf.c \
-	framework/stack.c \
-	framework/thread.c \
-	framework/ssl.c
+	framework/gwhf/event/epoll.c \
+	framework/gwhf/http/request.c \
+	framework/gwhf/http/response.c \
+	framework/gwhf/os/$(GWHF_OS)/socket.c \
+	framework/gwhf/client.c \
+	framework/gwhf/gwhf.c \
+	framework/gwhf/helpers.c \
+	framework/gwhf/stack.c \
+	framework/gwhf/thread.c \
+	framework/gwhf/ssl.c
 
 ifeq ($(GWHF_OS),windows)
 C_SRCS_FRAMEWORK += \
-	framework/ext/tinycthread/tinycthread.c \
-	framework/ext/wepoll/wepoll.c
+	framework/gwhf/ext/tinycthread/tinycthread.c \
+	framework/gwhf/ext/wepoll/wepoll.c
 endif
 
 ifeq ($(GWHF_OS),linux)
-	C_SRCS_FRAMEWORK += framework/os/linux/signal.c
+	C_SRCS_FRAMEWORK += framework/gwhf/os/linux/signal.c
 endif
 
 C_SRCS_APP := app/main.c
