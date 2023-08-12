@@ -49,7 +49,7 @@ struct gwhf {
 GWHF_EXPORT int gwhf_global_init(void);
 GWHF_EXPORT void gwhf_global_destroy(void);
 GWHF_EXPORT int gwhf_init(struct gwhf *ctx);
-GWHF_EXPORT int gwhf_init_arg(struct gwhf *ctx, struct gwhf_init_arg *arg);
+GWHF_EXPORT int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg);
 GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
 GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT const char *gwhf_strerror(int err);

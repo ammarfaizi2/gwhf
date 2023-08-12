@@ -248,7 +248,7 @@ int gwhf_init(struct gwhf *ctx)
 }
 
 __cold
-int gwhf_init_arg(struct gwhf *ctx, struct gwhf_init_arg *arg)
+int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg)
 {
 	int ret;
 
