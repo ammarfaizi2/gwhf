@@ -351,7 +351,7 @@ static int handle_event_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->event_fd);
 }
 
-static int handle_event_client(struct gwhf_worker *wrk, struct gwhf_conn *conn)
+static int handle_event_client(struct gwhf_worker *wrk, struct gwhf_client *conn)
 {
 	return 0;
 }

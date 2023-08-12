@@ -3,8 +3,8 @@
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
 
-#ifndef GWHF__SOCKET_H
-#define GWHF__SOCKET_H
+#ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__SOCKET_H
+#define FRAMEWORK__GWHF__INCLUDE__GWHF__SOCKET_H
 
 #include <gwhf/common.h>
 
@@ -73,4 +73,4 @@ static inline socklen_t gwhf_sock_addr_len(struct sockaddr_gwhf *sg)
 	}
 }
 
-#endif /* #ifndef GWHF__SOCKET_H */
+#endif /* #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__SOCKET_H */

@@ -2,8 +2,8 @@
 /*
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
-#ifndef GWHF__THREAD_H
-#define GWHF__THREAD_H
+#ifndef FRAMEWORK__GWHF__THREAD_H
+#define FRAMEWORK__GWHF__THREAD_H
 
 #include <stdint.h>
 #include <stdarg.h>
@@ -63,4 +63,4 @@ int cond_broadcast_n(cond_t *cond, uint32_t n);
 } // extern "C"
 #endif
 
-#endif /* #ifndef GWHF__THREAD_H */
+#endif /* #ifndef FRAMEWORK__GWHF__THREAD_H */

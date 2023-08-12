@@ -2,11 +2,12 @@
 /*
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
-#ifndef GWHF__INTERNAL_H
-#define GWHF__INTERNAL_H
+#ifndef FRAMEWORK__GWHF__INTERNAL_H
+#define FRAMEWORK__GWHF__INTERNAL_H
 
 #include <gwhf/gwhf.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <errno.h>
 
 #if defined(__linux__)
@@ -55,10 +56,7 @@
 
 #include "thread.h"
 #include "ssl.h"
-
-struct gwhf_client_slot {
-	struct gwhf_stack16	*stack;
-};
+#include "client.h"
 
 struct gwhf_worker {
 #if defined(__linux__) || defined(_WIN32)
@@ -66,6 +64,7 @@ struct gwhf_worker {
 	evfd_t			event_fd;
 	struct epoll_event	*events;
 #endif
+	struct gwhf_client_slot	client_slots;
 	struct gwhf		*ctx;
 	thread_t		thread;
 	uint32_t		id;
@@ -80,4 +79,6 @@ struct gwhf_internal {
 #endif
 };
 
-#endif /* #ifndef GWHF__INTERNAL_H */
+#include "helpers.h"
+
+#endif /* #ifndef FRAMEWORK__GWHF__INTERNAL_H */

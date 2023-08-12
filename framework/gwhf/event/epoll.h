@@ -2,8 +2,8 @@
 /*
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
-#ifndef GWHF__EVENT__EPOLL_H
-#define GWHF__EVENT__EPOLL_H
+#ifndef FRAMEWORK__GWHF__EVENT__EPOLL_H
+#define FRAMEWORK__GWHF__EVENT__EPOLL_H
 
 #include <gwhf/gwhf.h>
 
@@ -36,4 +36,4 @@ int gwhf_init_worker_ev_epoll(struct gwhf_worker *wrk);
 int gwhf_run_worker_ev_epoll(struct gwhf_worker *wrk);
 int gwhf_destroy_worker_ev_epoll(struct gwhf_worker *wrk);
 
-#endif /* #ifndef GWHF__EVENT__EPOLL_H */
+#endif /* #ifndef FRAMEWORK__GWHF__EVENT__EPOLL_H */

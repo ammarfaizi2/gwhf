@@ -4,8 +4,8 @@
  * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
 
-#ifndef GWHF__GWHF_H
-#define GWHF__GWHF_H
+#ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__GWHF_H
+#define FRAMEWORK__GWHF__INCLUDE__GWHF__GWHF_H
 
 #include <gwhf/common.h>
 #include <gwhf/socket.h>
@@ -54,4 +54,4 @@ GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
 GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT const char *gwhf_strerror(int err);
 
-#endif /* #ifndef GWHF__GWHF_H */
+#endif /* #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__GWHF_H */

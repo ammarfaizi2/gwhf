@@ -4,8 +4,8 @@
  * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
 
-#ifndef GWHF__STACK_H
-#define GWHF__STACK_H
+#ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__STACK_H
+#define FRAMEWORK__GWHF__INCLUDE__GWHF__STACK_H
 
 #include <gwhf/common.h>
 #include <stdint.h>
@@ -32,4 +32,4 @@ GWHF_EXPORT int __gwhf_stack16_pop(struct gwhf_stack16 *stack, uint16_t *data);
 } /* extern "C" */
 #endif
 
-#endif /* #ifndef GWHF__STACK_H */
+#endif /* #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__STACK_H */
