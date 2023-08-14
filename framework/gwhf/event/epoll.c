@@ -365,7 +365,7 @@ again:
 	if (ret < 0)
 		return handle_accept_err(wrk, ret);
 
-	if (unlikely(len > sizeof(addr))) {
+	if (unlikely((size_t)len > sizeof(addr))) {
 		ret = -EINVAL;
 		goto out_close;
 	}
