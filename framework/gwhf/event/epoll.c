@@ -387,9 +387,8 @@ again:
 
 	ret = assign_client(wrk, cl, &fd, &addr);
 	if (unlikely(ret < 0)) {
-		gwhf_put_client(&wrk->client_slots, cl);
-		gwhf_sock_close(&fd);
-		return 0;
+		ret = 0;
+		goto out_put;
 	}
 
 	if (try_count++ < 32)
@@ -397,6 +396,8 @@ again:
 
 	return 0;
 
+out_put:
+	gwhf_put_client(&wrk->client_slots, cl);
 out_close:
 	gwhf_sock_close(&fd);
 	return ret;
