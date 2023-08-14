@@ -89,7 +89,7 @@
 	(rax);							\
 })
 
-#define do_syscall5(N, A, B, C, D, E) ({				\
+#define do_syscall5(N, A, B, C, D, E) ({			\
 	intptr_t rax = (intptr_t)(N);				\
 	__typeof__(A) rdi = (A);				\
 	__typeof__(B) rsi = (B);				\

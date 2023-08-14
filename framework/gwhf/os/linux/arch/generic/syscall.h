@@ -7,83 +7,83 @@
 
 #include <syscall.h>
 #include <stdint.h>
+#include <errno.h>
 
 #define do_syscall0(N) ({			\
-	uintptr_t ret = (uintptr_t)(N);		\
+	intptr_t ret = (uintptr_t)(N);		\
 						\
 	ret = syscall(ret);			\
 						\
-	(ret);					\
+	(ret == -1 ? -errno : ret);		\
 })
 
 #define do_syscall1(N, A) ({			\
-	uintptr_t ret = (uintptr_t)(N);		\
-	uintptr_t arg1 = (uintptr_t)(A);	\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
 						\
-	ret = syscall(ret, arg1);		\
+	ret = syscall(ret, a);			\
 						\
-	(ret);					\
+	(ret == -1 ? -errno : ret);		\
 })
 
 #define do_syscall2(N, A, B) ({			\
-	uintptr_t ret = (uintptr_t)(N);		\
-	uintptr_t arg1 = (uintptr_t)(A);	\
-	uintptr_t arg2 = (uintptr_t)(B);	\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
+	__typeof__(B) b = (B);			\
 						\
-	ret = syscall(ret, arg1, arg2);		\
+	ret = syscall(ret, a, b);		\
 						\
-	(ret);					\
+	(ret == -1 ? -errno : ret);		\
 })
 
 #define do_syscall3(N, A, B, C) ({		\
-	uintptr_t ret = (uintptr_t)(N);		\
-	uintptr_t arg1 = (uintptr_t)(A);	\
-	uintptr_t arg2 = (uintptr_t)(B);	\
-	uintptr_t arg3 = (uintptr_t)(C);	\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
+	__typeof__(B) b = (B);			\
+	__typeof__(C) c = (C);			\
 						\
-	ret = syscall(ret, arg1, arg2, arg3);	\
+	ret = syscall(ret, a, b, c);		\
 						\
-	(ret);					\
+	(ret == -1 ? -errno : ret);		\
 })
 
-#define do_syscall4(N, A, B, C, D) ({			\
-	uintptr_t ret = (uintptr_t)(N);			\
-	uintptr_t arg1 = (uintptr_t)(A);		\
-	uintptr_t arg2 = (uintptr_t)(B);		\
-	uintptr_t arg3 = (uintptr_t)(C);		\
-	uintptr_t arg4 = (uintptr_t)(D);		\
-							\
-	ret = syscall(ret, arg1, arg2, arg3, arg4);	\
-							\
-	(ret);						\
+#define do_syscall4(N, A, B, C, D) ({		\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
+	__typeof__(B) b = (B);			\
+	__typeof__(C) c = (C);			\
+	__typeof__(D) d = (D);			\
+						\
+	ret = syscall(ret, a, b, c, d);		\
+						\
+	(ret == -1 ? -errno : ret);		\
 })
 
-#define do_syscall5(N, A, B, C, D, E) ({			\
-	uintptr_t ret = (uintptr_t)(N);				\
-	uintptr_t arg1 = (uintptr_t)(A);			\
-	uintptr_t arg2 = (uintptr_t)(B);			\
-	uintptr_t arg3 = (uintptr_t)(C);			\
-	uintptr_t arg4 = (uintptr_t)(D);			\
-	uintptr_t arg5 = (uintptr_t)(E);			\
-								\
-	ret = syscall(ret, arg1, arg2, arg3, arg4, arg5);	\
-								\
-	(ret);							\
+#define do_syscall5(N, A, B, C, D, E) ({	\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
+	__typeof__(B) b = (B);			\
+	__typeof__(C) c = (C);			\
+	__typeof__(D) d = (D);			\
+	__typeof__(E) e = (E);			\
+						\
+	ret = syscall(ret, a, b, c, d, e);	\
+						\
+	(ret == -1 ? -errno : ret);		\
 })
 
-#define do_syscall6(N, A, B, C, D, E, F) ({			\
-	uintptr_t ret = (uintptr_t)(N);				\
-	uintptr_t arg1 = (uintptr_t)(A);			\
-	uintptr_t arg2 = (uintptr_t)(B);			\
-	uintptr_t arg3 = (uintptr_t)(C);			\
-	uintptr_t arg4 = (uintptr_t)(D);			\
-	uintptr_t arg5 = (uintptr_t)(E);			\
-	uintptr_t arg6 = (uintptr_t)(F);			\
-								\
-	ret = syscall(ret, arg1, arg2, arg3, arg4, arg5, arg6);	\
-								\
-	(ret);							\
+#define do_syscall6(N, A, B, C, D, E, F) ({	\
+	intptr_t ret = (uintptr_t)(N);		\
+	__typeof__(A) a = (A);			\
+	__typeof__(B) b = (B);			\
+	__typeof__(C) c = (C);			\
+	__typeof__(D) d = (D);			\
+	__typeof__(E) e = (E);			\
+	__typeof__(F) f = (F);			\
+						\
+	ret = syscall(ret, a, b, c, d, e, f);	\
+						\
+	(ret == -1 ? -errno : ret);		\
 })
-
 
 #endif /* #ifndef FRAMEWORK__GWHF__OS__LINUX__ARCH__GENERIC__SYSCALL_H */

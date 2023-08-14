@@ -35,11 +35,16 @@ int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 {
 	int ret;
 
-		ret = (int)do_syscall2(__NR_fcntl, sk->fd, F_GETFL);
+	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_GETFL, 0);
 	if (ret < 0)
 		return ret;
 
-	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_SETFL, ret | O_NONBLOCK);
+	/*
+	 * TODO(ammarfaizi2): Fix the wrong fnctl when using generic arch
+	 *                    syscall.
+	 */
+	ret |= O_NONBLOCK;
+	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_SETFL, ret);
 	if (ret < 0)
 		return ret;
 
