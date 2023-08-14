@@ -428,7 +428,7 @@ static int handle_event_client_recv(struct gwhf_worker *wrk,
 static int handle_event_client_send(struct gwhf_worker *wrk,
 				    struct gwhf_client *cl)
 {
-	return 0;	
+	return 0;
 }
 
 static int handle_event_client(struct gwhf_worker *wrk, struct epoll_event *ev)
