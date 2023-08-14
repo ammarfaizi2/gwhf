@@ -330,20 +330,76 @@ static int handle_accept_err(struct gwhf_worker *wrk, int ret)
 	return ret;
 }
 
+static int assign_client(struct gwhf_worker *wrk, struct gwhf_client *cl,
+			 struct gwhf_sock *fd, struct sockaddr_gwhf *addr)
+{
+	union epoll_data data;
+	int ret;
+
+	/*
+	 * TODO(ammarfaizi2): Load balance this across workers.
+	 */
+	data.ptr = cl;
+	ret = epoll_add(wrk->epoll_fd, fd, EPOLLIN, data);
+	if (unlikely(ret < 0))
+		return ret;
+
+	cl->fd = *fd;
+	cl->addr = *addr;
+	return 0;
+}
+
 static int handle_event_new_client(struct gwhf_worker *wrk)
 {
 	struct gwhf_sock *tcp = &wrk->ctx->internal->tcp;
 	struct sockaddr_gwhf addr;
+	struct gwhf_client *cl;
+	uint32_t try_count = 0;
 	struct gwhf_sock fd;
 	socklen_t len;
 	int ret;
 
+again:
 	len = sizeof(addr);
 	ret = gwhf_sock_accept(&fd, tcp, &addr, &len);
 	if (ret < 0)
 		return handle_accept_err(wrk, ret);
 
+	if (unlikely(len > sizeof(addr))) {
+		ret = -EINVAL;
+		goto out_close;
+	}
+
+	ret = gwhf_sock_set_nonblock(&fd);
+	if (unlikely(ret < 0))
+		goto out_close;
+
+	cl = gwhf_get_client(&wrk->client_slots);
+	if (unlikely(GWHF_IS_ERR(cl))) {
+		int err = GWHF_PTR_ERR(cl);
+		if (err == -EAGAIN)
+			ret = 0;
+		else
+			ret = err;
+
+		goto out_close;
+	}
+
+	ret = assign_client(wrk, cl, &fd, &addr);
+	if (unlikely(ret < 0)) {
+		gwhf_put_client(&wrk->client_slots, cl);
+		gwhf_sock_close(&fd);
+		return 0;
+	}
+
+	if (try_count++ < 32)
+		goto again;
+
 	return 0;
+
+out_close:
+	gwhf_sock_close(&fd);
+	return ret;
 }
 
 static int handle_event_event_fd(struct gwhf_worker *wrk)
@@ -351,8 +407,54 @@ static int handle_event_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->event_fd);
 }
 
-static int handle_event_client(struct gwhf_worker *wrk, struct gwhf_client *conn)
+static int handle_event_client_recv(struct gwhf_worker *wrk,
+				    struct gwhf_client *cl)
 {
+	struct gwhf_client_stream *stream = gwhf_client_get_cur_stream(cl);
+	char buf[4096];
+	int ret;
+
+	ret = gwhf_sock_recv(&cl->fd, buf, sizeof(buf), 0);
+	if (ret < 0)
+		return ret;
+
+	if (!ret)
+		return -ECONNABORTED;
+
+	return 0;
+}
+
+static int handle_event_client_send(struct gwhf_worker *wrk,
+				    struct gwhf_client *cl)
+{
+	return 0;	
+}
+
+static int handle_event_client(struct gwhf_worker *wrk, struct epoll_event *ev)
+{
+	struct gwhf_client *cl = ev->data.ptr;
+	uint32_t events = ev->events;
+	int put = 0;
+
+	cl->data = ev;
+
+	if (events & EPOLLIN) {
+		put = handle_event_client_recv(wrk, cl);
+		if (unlikely(put < 0))
+			goto out;
+	}
+
+	if (events & EPOLLOUT) {
+		put = handle_event_client_send(wrk, cl);
+		if (unlikely(put < 0))
+			goto out;
+	}
+
+out:
+	cl->data = NULL;
+	if (put)
+		gwhf_put_client(&wrk->client_slots, cl);
+
 	return 0;
 }
 
@@ -366,7 +468,7 @@ static int handle_event(struct gwhf_worker *wrk, struct epoll_event *ev)
 	if (ev->data.u64 == 1)
 		return handle_event_event_fd(wrk);
 
-	return handle_event_client(wrk, ev->data.ptr);
+	return handle_event_client(wrk, ev);
 }
 
 static int handle_events(struct gwhf_worker *wrk, int nr_events)

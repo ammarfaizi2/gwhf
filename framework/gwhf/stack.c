@@ -6,6 +6,7 @@
 #include <gwhf/stack.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "internal.h"
 

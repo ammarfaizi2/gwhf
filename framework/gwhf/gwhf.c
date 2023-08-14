@@ -28,6 +28,9 @@ static int validate_init_arg(struct gwhf_init_arg *arg)
 	if (!arg->nr_workers)
 		arg->nr_workers = 4;
 
+	if (!arg->max_clients)
+		arg->max_clients = 8192;
+
 	/*
 	 * Currently, only epoll is supported.
 	 */
@@ -138,12 +141,20 @@ static void gwhf_destroy_worker_ev(struct gwhf_worker *wrk)
 
 static int gwhf_init_worker(struct gwhf *ctx, struct gwhf_worker *wrk)
 {
+	uint32_t max_clients = ctx->init_arg.max_clients;
 	int ret;
 
 	wrk->ctx = ctx;
-	ret = gwhf_init_worker_ev(wrk);
+
+	ret = gwhf_init_client_slot(&wrk->client_slots, max_clients);
 	if (ret)
 		return ret;
+
+	ret = gwhf_init_worker_ev(wrk);
+	if (ret) {
+		gwhf_destroy_client_slot(&wrk->client_slots);
+		return ret;
+	}
 
 	/*
 	 * If @wrk->id == 0, do not create a thread. It will run on the
@@ -167,6 +178,8 @@ static void gwhf_destroy_worker(struct gwhf_worker *wrk)
 		gwhf_destroy_worker_ev(wrk);
 		thread_join(wrk->thread, NULL);
 	}
+
+	gwhf_destroy_client_slot(&wrk->client_slots);
 }
 
 static int gwhf_init_workers(struct gwhf *ctx)

@@ -4,6 +4,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "client.h"
 
@@ -90,6 +91,8 @@ int gwhf_reset_current_stream(struct gwhf_client *cl)
 void gwhf_reset_client(struct gwhf_client *cl)
 {
 	gwhf_sock_close(&cl->fd);
+	gwhf_destroy_client_streams(cl);
+	gwhf_destroy_client_ssl_buf(cl);
 }
 
 static void assert_get_client(struct gwhf_client *cl)
@@ -127,6 +130,12 @@ struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs)
 	err = gwhf_init_client_ssl_buf(cl);
 	if (unlikely(err))
 		goto out_client_stream;
+
+#if defined(_WIN32)
+	cl->fd.fd = INVALID_SOCKET;
+#else
+	cl->fd.fd = -1;
+#endif
 
 	return cl;
 

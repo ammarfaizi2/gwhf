@@ -31,6 +31,7 @@ struct gwhf_init_arg {
 	uint32_t	nr_workers;
 	int		backlog;
 	uint16_t	bind_port;
+	uint16_t	max_clients;
 	uint8_t		ev_type;
 
 	union {

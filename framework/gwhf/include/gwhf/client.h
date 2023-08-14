@@ -229,6 +229,11 @@ struct gwhf_client {
 	struct gwhf_ssl_buffer		ssl_res_buf;
 
 	/*
+	 * Internal data.
+	 */
+	void				*data;
+
+	/*
 	 * Stream array.
 	 */
 	struct gwhf_client_stream	*streams;
