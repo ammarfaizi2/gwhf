@@ -193,6 +193,16 @@ struct gwhf_client_stream {
 	 * been processed.
 	 */
 	uint32_t			sent_len;
+
+	/*
+	 * The HTTP response.
+	 */
+	struct gwhf_http_res		res;
+
+	/*
+	 * The HTTP request.
+	 */
+	struct gwhf_http_req		req;
 };
 
 struct gwhf_ssl_buffer {
@@ -233,6 +243,19 @@ struct gwhf_client {
 	 */
 	uint32_t			cur_stream;
 };
+
+static inline struct gwhf_client_stream *
+gwhf_client_get_cur_stream(struct gwhf_client *cl)
+{
+	return &cl->streams[cl->cur_stream];
+}
+
+void gwhf_destroy_client_stream(struct gwhf_client_stream *cs);
+void gwhf_destroy_client_streams(struct gwhf_client *cl);
+int gwhf_init_client_stream(struct gwhf_client_stream *cs);
+int gwhf_init_client_streams(struct gwhf_client *cl, uint32_t nr_streams);
+int gwhf_init_client_ssl_buf(struct gwhf_client *cl);
+void gwhf_destroy_client_ssl_buf(struct gwhf_client *cl);
 
 #ifdef __cplusplus
 } /* extern "C" */

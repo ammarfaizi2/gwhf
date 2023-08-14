@@ -21,5 +21,6 @@ struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs);
 void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
 void gwhf_soft_reset_client(struct gwhf_client *cl);
 void gwhf_reset_client(struct gwhf_client *cl);
+int gwhf_reset_current_stream(struct gwhf_client *cl);
 
 #endif /* #ifndef FRAMEWORK__GWHF__CLIENT_H */

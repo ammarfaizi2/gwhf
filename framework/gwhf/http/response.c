@@ -200,7 +200,7 @@ int gwhf_http_res_add_hdr(struct gwhf_http_res *res, const char *akey,
 {
 	struct gwhf_http_hdr_field_str *tmp, *fields = res->hdr.hdr_fields;
 	uint16_t new_nr_hdr_fields = res->hdr.nr_hdr_fields + 1;
-	char *key, *val;
+	char *key = NULL, *val = NULL;
 	size_t key_len;
 	size_t val_len;
 	size_t len;
@@ -214,22 +214,21 @@ int gwhf_http_res_add_hdr(struct gwhf_http_res *res, const char *akey,
 	memcpy(key, akey, key_len + 1);
 
 	va_start(ap, vfmt);
+
 	len = (size_t)snprintf(NULL, 0, vfmt, ap);
+	if (unlikely((res->hdr.total_requried_len + len + key_len) >= UINT16_MAX))
+		goto out_va_end;
+
 	val = malloc(len);
-	if (unlikely(!val)) {
-		free(key);
-		va_end(ap);
-		return -ENOMEM;
-	}
+	if (unlikely(!val))
+		goto out_va_end;
+
 	val_len = snprintf(val, len, vfmt, ap);
 	va_end(ap);
 
 	tmp = realloc(fields, sizeof(*fields) * new_nr_hdr_fields);
-	if (unlikely(!tmp)) {
-		free(key);
-		free(val);
-		return -ENOMEM;
-	}
+	if (unlikely(!tmp))
+		goto out_free_val;
 
 	fields = tmp;
 	fields[new_nr_hdr_fields - 1].key = key;
@@ -238,6 +237,13 @@ int gwhf_http_res_add_hdr(struct gwhf_http_res *res, const char *akey,
 	res->hdr.nr_hdr_fields = new_nr_hdr_fields;
 	res->hdr.total_requried_len += key_len + val_len + sizeof(": \r\n") - 1;
 	return 0;
+
+out_va_end:
+	va_end(ap);
+out_free_val:
+	free(val);
+	free(key);
+	return -ENOMEM;
 }
 
 char *gwhf_http_res_get_hdr(struct gwhf_http_res *res, const char *key)
@@ -349,7 +355,9 @@ static int prepare_buffer(struct gwhf_http_res *res, const char *http_code,
 static int copy_res_body(char *dst, struct gwhf_http_res_body *body, size_t len)
 {
 	size_t copy_len;
+#if defined(__linux__)	
 	ssize_t ret;
+#endif
 
 	switch (body->type) {
 	case GWHF_HTTP_RES_BODY_BUF:

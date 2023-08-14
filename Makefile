@@ -90,6 +90,7 @@ C_SRCS_FRAMEWORK := \
 	framework/gwhf/gwhf.c \
 	framework/gwhf/helpers.c \
 	framework/gwhf/stack.c \
+	framework/gwhf/stream.c \
 	framework/gwhf/thread.c \
 	framework/gwhf/ssl.c
 
