@@ -14,7 +14,7 @@ int gwhf_ssl_buf_init(struct gwhf_ssl_buffer *sbuf)
 	char *buf;
 
 	buf = malloc(alloc);
-	if (!buf)
+	if (unlikely(!buf))
 		return -ENOMEM;
 
 	sbuf->alloc = alloc;

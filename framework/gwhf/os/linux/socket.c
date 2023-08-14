@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include "arch/syscall.h"
+
 int gwhf_sock_global_init(void)
 {
 	return 0;
@@ -21,9 +23,9 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 {
 	int fd;
 
-	fd = socket(af, type, prot);
+	fd = (int)do_syscall3(__NR_socket, af, type, prot);
 	if (fd < 0)
-		return -errno;
+		return fd;
 
 	sk->fd = fd;
 	return 0;
@@ -33,13 +35,13 @@ int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 {
 	int ret;
 
-	ret = fcntl(sk->fd, F_GETFL);
+		ret = (int)do_syscall2(__NR_fcntl, sk->fd, F_GETFL);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
-	ret = fcntl(sk->fd, F_SETFL, ret | O_NONBLOCK);
+	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_SETFL, ret | O_NONBLOCK);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
 	return 0;
 }
@@ -49,9 +51,9 @@ int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 {
 	int ret;
 
-	ret = bind(sk->fd, &sg->sa, len);
+	ret = (int)do_syscall3(__NR_bind, sk->fd, &sg->sa, len);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
 	return 0;
 }
@@ -60,9 +62,9 @@ int gwhf_sock_listen(struct gwhf_sock *sk, int backlog)
 {
 	int ret;
 
-	ret = listen(sk->fd, backlog);
+	ret = (int)do_syscall2(__NR_listen, sk->fd, backlog);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
 	return 0;
 }
@@ -72,9 +74,9 @@ int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
 {
 	int fd;
 
-	fd = accept(sk->fd, &sg->sa, len);
+	fd = (int)do_syscall3(__NR_accept, sk->fd, &sg->sa, len);
 	if (fd < 0)
-		return -errno;
+		return fd;
 
 	ret->fd = fd;
 	return 0;
@@ -85,9 +87,9 @@ int gwhf_sock_connect(struct gwhf_sock *sk, struct sockaddr_gwhf *dst,
 {
 	int ret;
 
-	ret = connect(sk->fd, &dst->sa, len);
+	ret = (int)do_syscall3(__NR_connect, sk->fd, &dst->sa, len);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
 	return 0;
 }
@@ -99,9 +101,9 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 	if (sk->fd < 0)
 		return 0;
 
-	ret = close(sk->fd);
+	ret = (int)do_syscall1(__NR_close, sk->fd);
 	if (ret < 0)
-		return -errno;
+		return ret;
 
 	sk->fd = -1;
 	return 0;
@@ -109,49 +111,26 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 
 int gwhf_sock_recv(struct gwhf_sock *sk, void *buf, size_t len, int flags)
 {
-	int ret;
-
-	ret = recv(sk->fd, buf, len, flags);
-	if (ret < 0)
-		return -errno;
-
-	return ret;
+	return (int)do_syscall6(__NR_recvfrom, sk->fd, buf, len, flags, NULL,
+				NULL);
 }
 
 int gwhf_sock_send(struct gwhf_sock *sk, const void *buf, size_t len,
 		   int flags)
 {
-	int ret;
-
-	ret = send(sk->fd, buf, len, flags);
-	if (ret < 0)
-		return -errno;
-
-	return ret;
+	return (int)do_syscall6(__NR_sendto, sk->fd, buf, len, flags, NULL, 0);
 }
 
 int gwhf_sock_getname(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 		      socklen_t *len)
 {
-	int ret;
-
-	ret = getsockname(sk->fd, &sg->sa, len);
-	if (ret < 0)
-		return -errno;
-
-	return 0;
+	return (int)do_syscall3(__NR_getsockname, sk->fd, &sg->sa, len);
 }
 
 int gwhf_sock_getpeername(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 			  socklen_t *len)
 {
-	int ret;
-
-	ret = getpeername(sk->fd, &sg->sa, len);
-	if (ret < 0)
-		return -errno;
-
-	return 0;
+	return (int)do_syscall3(__NR_getpeername, sk->fd, &sg->sa, len);
 }
 
 int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,
