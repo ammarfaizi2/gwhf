@@ -3,6 +3,7 @@
  * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
 #include <gwhf/socket.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -21,11 +22,18 @@ void gwhf_sock_global_destroy(void)
 
 int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 {
+	int val;
 	int fd;
 
 	fd = (int)do_syscall3(__NR_socket, af, type, prot);
 	if (fd < 0)
 		return fd;
+
+	val = 1;
+	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEADDR, &val,
+		    sizeof(val));
+	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEPORT, &val,
+		    sizeof(val));
 
 	sk->fd = fd;
 	return 0;
@@ -33,18 +41,13 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 
 int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 {
-	int ret;
+	long ret;
 
-	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_GETFL, 0);
+	ret = fcntl64(sk->fd, F_GETFL);
 	if (ret < 0)
 		return ret;
 
-	/*
-	 * TODO(ammarfaizi2): Fix the wrong fnctl when using generic arch
-	 *                    syscall.
-	 */
-	ret |= O_NONBLOCK;
-	ret = (int)do_syscall3(__NR_fcntl, sk->fd, F_SETFL, ret);
+	ret = fcntl64(sk->fd, F_SETFL, ret);
 	if (ret < 0)
 		return ret;
 
