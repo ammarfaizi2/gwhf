@@ -157,3 +157,10 @@ void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl)
 	assert(!ret);
 	(void)ret;
 }
+
+int gwhf_client_get_recv_buf(struct gwhf_client *cl, void **buf, size_t len)
+{
+	struct gwhf_client_stream *cs = gwhf_client_get_cur_stream(cl);
+
+	return gwhf_stream_get_recv_buf(cs, buf, len);
+}

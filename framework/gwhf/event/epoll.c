@@ -411,11 +411,15 @@ static int handle_event_event_fd(struct gwhf_worker *wrk)
 static int handle_event_client_recv(struct gwhf_worker *wrk,
 				    struct gwhf_client *cl)
 {
-	struct gwhf_client_stream *stream = gwhf_client_get_cur_stream(cl);
-	char buf[4096];
+	size_t len;
+	void *buf;
 	int ret;
 
-	ret = gwhf_sock_recv(&cl->fd, buf, sizeof(buf), 0);
+	ret = gwhf_client_get_recv_buf(cl, &buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
 	if (ret < 0)
 		return ret;
 
