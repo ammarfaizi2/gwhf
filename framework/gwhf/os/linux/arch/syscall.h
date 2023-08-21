@@ -8,7 +8,7 @@
 #include <syscall.h>
 #include <stdint.h>
 
-#if !defined(__x86_64__)
+#if defined(__x86_64__)
 #include "x86/syscall.h"
 #elif defined(__aarch64__)
 #include "aarch64/syscall.h"

@@ -45,11 +45,11 @@ int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 
 	ret = fcntl64(sk->fd, F_GETFL);
 	if (ret < 0)
-		return ret;
+		return -errno;
 
-	ret = fcntl64(sk->fd, F_SETFL, ret);
+	ret = fcntl64(sk->fd, F_SETFL, ret | O_NONBLOCK);
 	if (ret < 0)
-		return ret;
+		return -errno;
 
 	return 0;
 }
