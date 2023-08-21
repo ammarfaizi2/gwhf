@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
+ * Copyright (C) 2023 Hoody Ltd
  */
 #include "thread.h"
 #include <assert.h>

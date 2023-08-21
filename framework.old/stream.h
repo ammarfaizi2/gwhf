@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Ammar Faizi <ammarfaizi2@gnuweeb.org>
+ * Copyright (C) 2023 Hoody Ltd
  */
 
 #ifndef GWHF__FRAMEWORK__HTTP__STREAM_H
