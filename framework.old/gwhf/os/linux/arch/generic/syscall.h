@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd
  */
 #ifndef FRAMEWORK__GWHF__OS__LINUX__ARCH__GENERIC__SYSCALL_H
 #define FRAMEWORK__GWHF__OS__LINUX__ARCH__GENERIC__SYSCALL_H

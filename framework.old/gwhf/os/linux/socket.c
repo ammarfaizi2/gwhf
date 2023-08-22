@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd
  */
 #include <gwhf/socket.h>
 #include <stdio.h>
@@ -22,7 +22,8 @@ void gwhf_sock_global_destroy(void)
 
 int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 {
-	int val, fd;
+	int val;
+	int fd;
 
 	fd = (int)do_syscall3(__NR_socket, af, type, prot);
 	if (fd < 0)

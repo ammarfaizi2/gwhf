@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023 Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd
+ * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
 
 #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__CLIENT_H
@@ -75,7 +76,6 @@ static inline const char *gwhf_http_req_get_version(struct gwhf_http_req *req)
 
 GWHF_EXPORT const char *gwhf_http_req_get_hdr(struct gwhf_http_req *req,
 					      const char *key);
-
 int gwhf_http_req_init(struct gwhf_http_req *req);
 void gwhf_http_req_destroy(struct gwhf_http_req *req);
 
@@ -248,6 +248,19 @@ struct gwhf_client {
 	 */
 	uint32_t			cur_stream;
 };
+
+static inline struct gwhf_client_stream *
+gwhf_client_get_cur_stream(struct gwhf_client *cl)
+{
+	return &cl->streams[cl->cur_stream];
+}
+
+void gwhf_destroy_client_stream(struct gwhf_client_stream *cs);
+void gwhf_destroy_client_streams(struct gwhf_client *cl);
+int gwhf_init_client_stream(struct gwhf_client_stream *cs);
+int gwhf_init_client_streams(struct gwhf_client *cl, uint32_t nr_streams);
+int gwhf_init_client_ssl_buf(struct gwhf_client *cl);
+void gwhf_destroy_client_ssl_buf(struct gwhf_client *cl);
 
 #ifdef __cplusplus
 } /* extern "C" */

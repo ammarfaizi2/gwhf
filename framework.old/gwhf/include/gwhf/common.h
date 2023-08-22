@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd
+ * Copyright (C) 2023  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
 
 #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__COMMON_H

@@ -1,38 +1,40 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd
  */
 #include <gwhf/socket.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
 
-#include "arch/syscall.h"
+#pragma comment (lib, "Ws2_32.lib")
+#pragma comment (lib, "Mswsock.lib")
+#pragma comment (lib, "AdvApi32.lib")
 
 int gwhf_sock_global_init(void)
 {
+	WSADATA wsa_data;
+	int ret;
+
+	ret = WSAStartup(MAKEWORD(2, 2), &wsa_data);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
 void gwhf_sock_global_destroy(void)
 {
+	WSACleanup();
 }
 
 int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 {
-	int val, fd;
+	SOCKET fd;
 
-	fd = (int)do_syscall3(__NR_socket, af, type, prot);
-	if (fd < 0)
-		return fd;
-
-	val = 1;
-	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEADDR, &val,
-		    sizeof(val));
-	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEPORT, &val,
-		    sizeof(val));
+	fd = socket(af, type, prot);
+	if (fd == INVALID_SOCKET)
+		return WSAGetLastError();
 
 	sk->fd = fd;
 	return 0;
@@ -40,15 +42,12 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 
 int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 {
-	long ret;
+	u_long mode = 1;
+	int ret;
 
-	ret = fcntl64(sk->fd, F_GETFL);
-	if (ret < 0)
-		return -errno;
-
-	ret = fcntl64(sk->fd, F_SETFL, ret | O_NONBLOCK);
-	if (ret < 0)
-		return -errno;
+	ret = ioctlsocket(sk->fd, FIONBIO, &mode);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
 
 	return 0;
 }
@@ -58,32 +57,26 @@ int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 {
 	int ret;
 
-	ret = (int)do_syscall3(__NR_bind, sk->fd, &sg->sa, len);
-	if (ret < 0)
-		return ret;
+	ret = bind(sk->fd, (struct sockaddr *)sg, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
 
 	return 0;
 }
 
 int gwhf_sock_listen(struct gwhf_sock *sk, int backlog)
 {
-	int ret;
-
-	ret = (int)do_syscall2(__NR_listen, sk->fd, backlog);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return listen(sk->fd, backlog);
 }
 
 int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
 		     struct sockaddr_gwhf *sg, socklen_t *len)
 {
-	int fd;
+	SOCKET fd;
 
-	fd = (int)do_syscall3(__NR_accept, sk->fd, &sg->sa, len);
-	if (fd < 0)
-		return fd;
+	fd = accept(sk->fd, (struct sockaddr *)sg, len);
+	if (fd == INVALID_SOCKET)
+		return WSAGetLastError();
 
 	ret->fd = fd;
 	return 0;
@@ -94,9 +87,9 @@ int gwhf_sock_connect(struct gwhf_sock *sk, struct sockaddr_gwhf *dst,
 {
 	int ret;
 
-	ret = (int)do_syscall3(__NR_connect, sk->fd, &dst->sa, len);
-	if (ret < 0)
-		return ret;
+	ret = connect(sk->fd, (struct sockaddr *)dst, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
 
 	return 0;
 }
@@ -105,39 +98,62 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 {
 	int ret;
 
-	if (sk->fd < 0)
+	if (sk->fd == INVALID_SOCKET)
 		return 0;
 
-	ret = (int)do_syscall1(__NR_close, sk->fd);
-	if (ret < 0)
-		return ret;
+	ret = closesocket(sk->fd);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
 
-	sk->fd = -1;
+	sk->fd = INVALID_SOCKET;
 	return 0;
 }
 
 int gwhf_sock_recv(struct gwhf_sock *sk, void *buf, size_t len, int flags)
 {
-	return (int)do_syscall6(__NR_recvfrom, sk->fd, buf, len, flags, NULL,
-				NULL);
+	int ret;
+
+	ret = recv(sk->fd, buf, len, flags);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return ret;
 }
 
 int gwhf_sock_send(struct gwhf_sock *sk, const void *buf, size_t len,
 		   int flags)
 {
-	return (int)do_syscall6(__NR_sendto, sk->fd, buf, len, flags, NULL, 0);
+	int ret;
+
+	ret = send(sk->fd, buf, len, flags);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return ret;
 }
 
 int gwhf_sock_getname(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 		      socklen_t *len)
 {
-	return (int)do_syscall3(__NR_getsockname, sk->fd, &sg->sa, len);
+	int ret;
+
+	ret = getsockname(sk->fd, (struct sockaddr *)sg, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return 0;
 }
 
 int gwhf_sock_getpeername(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 			  socklen_t *len)
 {
-	return (int)do_syscall3(__NR_getpeername, sk->fd, &sg->sa, len);
+	int ret;
+
+	ret = getpeername(sk->fd, (struct sockaddr *)sg, len);
+	if (ret == SOCKET_ERROR)
+		return WSAGetLastError();
+
+	return 0;
 }
 
 int gwhf_sock_fill_addr(struct sockaddr_gwhf *sg, const char *addr,

@@ -1,27 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023 Hoody Ltd
+ * Copyright (C) 2023  Hoody Ltd.
  */
-#ifndef FRAMEWORK__GWHF__CLIENT_H
-#define FRAMEWORK__GWHF__CLIENT_H
+#ifndef GWHF__CLIENT_H
+#define GWHF__CLIENT_H
 
-#include <gwhf/client.h>
 #include <gwhf/stack.h>
+#include <gwhf/gwhf.h>
 
 struct gwhf_client_slot {
 	struct gwhf_client	*clients;
 	struct gwhf_stack16	stack;
 };
 
-#include "internal.h"
+int gwhf_client_init_slot(struct gwhf_client_slot *gwhf, uint32_t max_clients);
+void gwhf_client_destroy_slot(struct gwhf_client_slot *gwhf);
 
-int gwhf_init_client_slot(struct gwhf_client_slot *cs, size_t nr_clients);
-void gwhf_destroy_client_slot(struct gwhf_client_slot *cs);
-struct gwhf_client *gwhf_get_client(struct gwhf_client_slot *cs);
-void gwhf_put_client(struct gwhf_client_slot *cs, struct gwhf_client *cl);
-void gwhf_soft_reset_client(struct gwhf_client *cl);
-void gwhf_reset_client(struct gwhf_client *cl);
-int gwhf_reset_current_stream(struct gwhf_client *cl);
-int gwhf_client_get_recv_buf(struct gwhf_client *cl, void **buf, size_t len);
-
-#endif /* #ifndef FRAMEWORK__GWHF__CLIENT_H */
+#endif /* #ifndef GWHF__CLIENT_H */
