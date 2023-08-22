@@ -106,7 +106,6 @@ static void destroy_socket(struct gwhf *ctx)
 static int init_ev(struct gwhf_worker *wrk)
 {
 	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
-	int ret;
 
 	if (arg->ev_type == GWHF_EV_EPOLL)
 		return gwhf_ev_epoll_init_worker(wrk);
@@ -114,31 +113,62 @@ static int init_ev(struct gwhf_worker *wrk)
 	return -EINVAL;
 }
 
-static int init_worker(struct gwhf_worker *wrk)
+static void destroy_ev(struct gwhf_worker *wrk)
 {
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
+
+	if (arg->ev_type == GWHF_EV_EPOLL)
+		gwhf_ev_epoll_destroy_worker(wrk);
+}
+
+static int run_ev(struct gwhf_worker *wrk)
+{
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
+
+	if (arg->ev_type == GWHF_EV_EPOLL)
+		return gwhf_ev_epoll_run_worker(wrk);
+
+	return -EINVAL;
+}
+
+static int __run_worker(struct gwhf_worker *wrk)
+{
+	return run_ev(wrk);
+}
+
+static void *run_worker(void *thread_arg)
+{
+	struct gwhf_worker *wrk = thread_arg;
 	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
 	int ret;
 
 	ret = gwhf_client_init_slot(&wrk->client_slot, arg->max_clients);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = init_ev(wrk);
 	if (ret)
 		goto out_client_slot;
 
-	return 0;
+	ret = __run_worker(wrk);
 
+	destroy_ev(wrk);
 out_client_slot:
 	gwhf_client_destroy_slot(&wrk->client_slot);
-	return ret;
+out:
+	wrk->ctx->stop = true;
+	return GWHF_ERR_PTR(ret);
 }
 
-static void destroy_worker(struct gwhf_worker *wrk)
+static int spawn_worker(struct gwhf_worker *wrk)
 {
-	gwhf_ev_epoll_destroy_worker(wrk);
+	return thread_create(&wrk->thread, &run_worker, wrk);
+}
+
+static void stop_worker(struct gwhf_worker *wrk)
+{
+	wrk->ctx->stop = true;
 	thread_join(wrk->thread, NULL);
-	gwhf_client_destroy_slot(&wrk->client_slot);
 }
 
 static int init_workers(struct gwhf *ctx)
@@ -159,7 +189,11 @@ static int init_workers(struct gwhf *ctx)
 	for (i = 0; i < arg->nr_workers; i++) {
 		workers[i].ctx = ctx;
 		workers[i].id = i;
-		ret = init_worker(&workers[i]);
+
+		if (i == 0)
+			continue;
+
+		ret = spawn_worker(&workers[i]);
 		if (ret)
 			goto out_err;
 	}
@@ -171,7 +205,7 @@ static int init_workers(struct gwhf *ctx)
 out_err:
 	ctx->stop = true;
 	while (i--)
-		destroy_worker(&workers[i]);
+		stop_worker(&workers[i]);
 
 	free(workers);
 	return ret;
@@ -239,7 +273,7 @@ void gwhf_destroy(struct gwhf *ctx)
 
 int gwhf_run(struct gwhf *ctx)
 {
-	return 0;
+	return GWHF_PTR_ERR(run_worker(&ctx->internal->workers[0]));
 }
 
 const char *gwhf_strerror(int err)

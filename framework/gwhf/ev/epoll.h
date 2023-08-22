@@ -26,11 +26,13 @@ typedef struct {
 #endif /* #if defined(__linux__) */
 
 #include "../internal.h"
+#include "../client.h"
 
 struct gwhf_worker;
 
 int gwhf_ev_epoll_validate_init_arg(struct gwhf_init_arg_ev_epoll *arg);
 int gwhf_ev_epoll_init_worker(struct gwhf_worker *wrk);
 void gwhf_ev_epoll_destroy_worker(struct gwhf_worker *wrk);
+int gwhf_ev_epoll_run_worker(struct gwhf_worker *wrk);
 
 #endif /* #ifndef GWHF__EV__EPOLL_H */

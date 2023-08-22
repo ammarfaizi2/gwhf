@@ -15,5 +15,7 @@ struct gwhf_client_slot {
 
 int gwhf_client_init_slot(struct gwhf_client_slot *gwhf, uint32_t max_clients);
 void gwhf_client_destroy_slot(struct gwhf_client_slot *gwhf);
+struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *gwhf);
+void gwhf_client_put(struct gwhf_client_slot *gwhf, struct gwhf_client *cl);
 
 #endif /* #ifndef GWHF__CLIENT_H */

@@ -2,6 +2,7 @@
 #include "./epoll.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static int epoll_add(epoll_t epfd, struct gwhf_sock *sk, uint32_t events,
 		     union epoll_data data)
@@ -46,7 +47,7 @@ static int register_event_fd(epoll_t epfd, evfd_t *efd)
 	int ret;
 
 	evt.events = EPOLLIN;
-	evt.data.u64 = 2;
+	evt.data.u64 = 1;
 	ret = epoll_ctl(epfd, EPOLL_CTL_ADD, *efd, &evt);
 	if (ret < 0)
 		return -errno;
@@ -113,7 +114,7 @@ static int register_event_fd(epoll_t epfd, evfd_t *efd)
 	int ret;
 
 	evt.events = EPOLLIN;
-	evt.data.u64 = 2;
+	evt.data.u64 = 1;
 	ret = epoll_ctl(epfd, EPOLL_CTL_ADD, efd->read.fd, &evt);
 	if (ret < 0)
 		return -errno;
@@ -224,7 +225,7 @@ static epoll_t gwhf_epoll_create(epoll_t *ep_fd, int size)
 }
 #endif /* #if defined(__linux__) */
 
-
+__cold
 int gwhf_ev_epoll_validate_init_arg(struct gwhf_init_arg_ev_epoll *arg)
 {
 	if (!arg->timeout)
@@ -239,6 +240,7 @@ int gwhf_ev_epoll_validate_init_arg(struct gwhf_init_arg_ev_epoll *arg)
 	return 0;
 }
 
+__cold
 int gwhf_ev_epoll_init_worker(struct gwhf_worker *wrk)
 {
 	int max_events = wrk->ctx->init_arg.ev_epoll.max_events;
@@ -293,6 +295,7 @@ out_ep_fd:
 	return err;
 }
 
+__cold
 void gwhf_ev_epoll_destroy_worker(struct gwhf_worker *wrk)
 {
 	struct gwhf_internal *ctxi = wrk->ctx->internal;
@@ -302,4 +305,198 @@ void gwhf_ev_epoll_destroy_worker(struct gwhf_worker *wrk)
 		epoll_del(wrk->ev.ep_fd, &ctxi->tcp);
 	close_event_fd(&wrk->ev.ep_fd);
 	epoll_close(wrk->ev.ep_fd);
+}
+
+static int poll_events(struct gwhf_worker *wrk)
+{
+	struct gwhf_init_arg_ev_epoll *arg = &wrk->ctx->init_arg.ev_epoll;
+	int max_events = arg->max_events;
+	int timeout = arg->timeout;
+	int ret;
+
+	ret = epoll_wait(wrk->ev.ep_fd, wrk->ev.events, max_events, timeout);
+	if (unlikely(ret < 0)) {
+		ret = -errno;
+
+		if (ret == -EINTR)
+			return 0;
+
+		return ret;
+	}
+
+	return ret;
+}
+
+static int assign_client_to_worker(struct gwhf_worker *wrk,
+				   struct gwhf_client *cl,
+				   struct gwhf_sock *sk,
+				   struct sockaddr_gwhf *addr)
+{
+	union epoll_data data;
+	int ret;
+
+	data.ptr = cl;
+	ret = epoll_add(wrk->ev.ep_fd, sk, EPOLLIN, data);
+	if (ret < 0)
+		return ret;
+
+	cl->fd = *sk;
+	cl->addr = *addr;
+	cl->data = NULL;
+	return 0;
+}
+
+static int handle_accept_error(struct gwhf_worker *wrk, int err)
+{
+	if (err == -EAGAIN || err == -EINTR)
+		return 0;
+
+	/*
+	 * TODO(ammarfaizi2): Handle -ENFILE and -EMFILE.
+	 */
+
+	return 0;
+}
+
+static int handle_new_connection(struct gwhf_worker *wrk)
+{
+	struct gwhf_sock *tcp = &wrk->ctx->internal->tcp;
+	struct sockaddr_gwhf addr;
+	struct gwhf_sock new_fd;
+	struct gwhf_client *cl;
+	socklen_t len;
+	int ret;
+
+	len = sizeof(addr);
+	ret = gwhf_sock_accept(&new_fd, tcp, &addr, &len);
+	if (ret < 0)
+		return handle_accept_error(wrk, ret);
+
+	cl = gwhf_client_get(&wrk->client_slot);
+	if (GWHF_IS_ERR(cl)) {
+		gwhf_sock_close(&new_fd);
+		return 0;
+	}
+
+	ret = assign_client_to_worker(wrk, cl, &new_fd, &addr);
+	if (ret < 0) {
+		gwhf_client_put(&wrk->client_slot, cl);
+		gwhf_sock_close(&new_fd);
+		return 0;
+	}
+
+	return 0;
+}
+
+static int handle_event_fd(struct gwhf_worker *wrk)
+{
+	return consume_event_fd(&wrk->ev.ev_fd);
+}
+
+static int handle_event_client_recv(struct gwhf_worker *wrk,
+				    struct gwhf_client *cl)
+{
+	char __buf[4096];
+	void *buf = __buf;
+	size_t len;
+	int ret;
+
+	len = sizeof(__buf);
+	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
+	if (ret < 0)
+		return 0;
+
+	if (!ret)
+		return -ECONNRESET;
+
+	return 0;
+}
+
+static int handle_event_client_send(struct gwhf_worker *wrk,
+				    struct gwhf_client *cl)
+{
+	return 0;
+}
+
+static void del_client_from_worker(struct gwhf_worker *wrk,
+				   struct gwhf_client *cl)
+{
+	epoll_del(wrk->ev.ep_fd, &cl->fd);
+}
+
+static int handle_event_client(struct gwhf_worker *wrk, struct epoll_event *ev)
+{
+	struct gwhf_client *cl = ev->data.ptr;
+	int put = 0;
+
+	if (unlikely(ev->events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+		put = 1;
+		goto out;
+	}
+
+	cl->data = ev;
+
+	if (ev->events & EPOLLIN) {
+		put = handle_event_client_recv(wrk, cl);
+		if (put)
+			goto out;
+	}
+
+	if (ev->events & EPOLLOUT) {
+		put = handle_event_client_send(wrk, cl);
+		if (put)
+			goto out;
+	}
+
+out:
+	cl->data = NULL;
+	if (put) {
+		del_client_from_worker(wrk, cl);
+		gwhf_client_put(&wrk->client_slot, cl);
+	}
+
+	return 0;
+}
+
+static int handle_event(struct gwhf_worker *wrk, struct epoll_event *ev)
+{
+	if (ev->data.u64 == 0)
+		return handle_new_connection(wrk);
+
+	if (ev->data.u64 == 1)
+		return handle_event_fd(wrk);
+
+	return handle_event_client(wrk, ev);
+}
+
+static int handle_events(struct gwhf_worker *wrk, int nr_events)
+{
+	struct epoll_event *events = wrk->ev.events;
+	int ret, i;
+
+	for (i = 0; i < nr_events; i++) {
+		ret = handle_event(wrk, &events[i]);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+int gwhf_ev_epoll_run_worker(struct gwhf_worker *wrk)
+{
+	struct gwhf *ctx = wrk->ctx;
+	int ret = 0;
+
+	while (!ctx->stop) {
+		ret = poll_events(wrk);
+		if (ret < 0)
+			break;
+
+		ret = handle_events(wrk, ret);
+		if (ret < 0)
+			break;
+	}
+
+	return ret;
 }
