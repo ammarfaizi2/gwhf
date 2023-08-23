@@ -221,12 +221,6 @@ static int parse_method_uri_qs_version(char **next,
 		hdr->off_qs = (uint32_t)-1;
 	}
 
-
-	printf("method = \"%s\"\n", hdr->buf + hdr->off_method);
-	printf("uri = \"%s\"\n", hdr->buf + hdr->off_uri);
-	if (hdr->off_qs != (uint32_t)-1)
-		printf("qs = \"%s\"\n", hdr->buf + hdr->off_qs);
-	printf("version = \"%s\"\n", hdr->buf + hdr->off_version);
 	return 0;
 }
 
@@ -345,6 +339,11 @@ static int parse_http_header_fields(char **next, struct gwhf_http_req_hdr *hdr)
 		tail = strchr(head, '\n');
 		if (!tail)
 			goto out_err;
+	}
+
+	if (!nr_fields) {
+		free(fields);
+		fields = NULL;
 	}
 
 	hdr->content_length = conlen;
