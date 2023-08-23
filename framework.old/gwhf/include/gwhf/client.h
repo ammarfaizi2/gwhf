@@ -76,8 +76,6 @@ static inline const char *gwhf_http_req_get_version(struct gwhf_http_req *req)
 
 GWHF_EXPORT const char *gwhf_http_req_get_hdr(struct gwhf_http_req *req,
 					      const char *key);
-int gwhf_http_req_init(struct gwhf_http_req *req);
-void gwhf_http_req_destroy(struct gwhf_http_req *req);
 
 struct gwhf_http_res_hdr {
 	struct gwhf_http_hdr_field_str	*hdr_fields;

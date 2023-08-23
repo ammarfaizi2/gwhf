@@ -15,7 +15,7 @@
 #endif
 
 #if defined(__linux__) || defined(_WIN32)
-#include "event/epoll.h"
+#include "./event/epoll.h"
 #endif
 
 #ifndef __cold
@@ -54,9 +54,9 @@
 #define __always_inline __attribute__((__always_inline__))
 #endif
 
-#include "thread.h"
-#include "ssl.h"
-#include "client.h"
+#include "./thread.h"
+#include "./ssl.h"
+#include "./client.h"
 
 struct gwhf_worker {
 #if defined(__linux__) || defined(_WIN32)
@@ -79,6 +79,6 @@ struct gwhf_internal {
 #endif
 };
 
-#include "helpers.h"
+#include "./helpers.h"
 
 #endif /* #ifndef FRAMEWORK__GWHF__INTERNAL_H */

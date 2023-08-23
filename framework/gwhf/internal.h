@@ -11,9 +11,11 @@
 #include "./thread.h"
 #include "./client.h"
 #include "./ev/epoll.h"
+#include "./helpers.h"
+#include "./http/request.h"
 
 #if defined(__linux__)
-#include <signal.h>
+#include "./os/linux/signal.h"
 #endif
 
 struct gwhf_worker {

@@ -222,9 +222,13 @@ static int init_internal_state(struct gwhf *ctx)
 
 	ctx->internal = ctxi;
 
-	ret = init_socket(ctx);
+	ret = gwhf_signal_init_handler(ctx);
 	if (ret)
 		goto out_ctxi;
+
+	ret = init_socket(ctx);
+	if (ret)
+		goto out_signal;
 
 	ret = init_workers(ctx);
 	if (ret)
@@ -234,6 +238,8 @@ static int init_internal_state(struct gwhf *ctx)
 
 out_socket:
 	destroy_socket(ctx);
+out_signal:
+	gwhf_signal_revert_sig_handler(ctx);
 out_ctxi:
 	free(ctxi);
 	ctx->internal = NULL;
@@ -244,6 +250,7 @@ static void destroy_internal_state(struct gwhf *ctx)
 {
 	struct gwhf_internal *ctxi = ctx->internal;
 
+	gwhf_signal_revert_sig_handler(ctx);
 	destroy_socket(ctx);
 	free(ctxi);
 }

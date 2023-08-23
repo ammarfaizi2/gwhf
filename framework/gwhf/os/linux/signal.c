@@ -16,13 +16,14 @@ static void gwhf_signal_handler(int sig)
 		return;
 
 	g_gwhf->stop = true;
-	if (write(STDOUT_FILENO, &c, 1) < 0)
-		exit(1);
+	if (write(STDOUT_FILENO, &c, 1) < 0) {
+		/* Ignore */
+	}
 
 	(void)sig;
 }
 
-int gwhf_init_signal_handler(struct gwhf *ctx)
+int gwhf_signal_init_handler(struct gwhf *ctx)
 {
 	struct sigaction sa = { .sa_handler = gwhf_signal_handler };
 	struct gwhf_internal *ctxi = ctx->internal;
@@ -60,7 +61,7 @@ out_sigint:
 	return err;
 }
 
-void gwhf_revert_signal_handler(struct gwhf *ctx)
+void gwhf_signal_revert_sig_handler(struct gwhf *ctx)
 {
 	struct gwhf_internal *ctxi = ctx->internal;
 

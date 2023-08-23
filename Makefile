@@ -83,6 +83,7 @@ override CXXFLAGS += $(SPECFLAGS)
 # Sources
 C_SRCS_FRAMEWORK := \
 	framework/gwhf/ev/epoll.c \
+	framework/gwhf/http/request.c \
 	framework/gwhf/os/$(GWHF_OS)/socket.c \
 	framework/gwhf/client.c \
 	framework/gwhf/gwhf.c \
@@ -99,7 +100,8 @@ C_SRCS_FRAMEWORK += \
 endif
 
 ifeq ($(GWHF_OS),linux)
-	C_SRCS_FRAMEWORK +=
+C_SRCS_FRAMEWORK += \
+	framework/gwhf/os/linux/signal.c
 endif
 
 C_SRCS_APP := app/main.c

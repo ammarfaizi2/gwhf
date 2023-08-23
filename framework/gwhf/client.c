@@ -6,6 +6,7 @@
 #include "./ssl.h"
 #include "./client.h"
 #include "./internal.h"
+#include "./stream.h"
 
 #include <string.h>
 #include <assert.h>
@@ -109,8 +110,14 @@ struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *gwhf)
 	if (unlikely(ret < 0))
 		goto out_err_recv_buf;
 
+	ret = gwhf_stream_init_all(cl, 1);
+	if (unlikely(ret < 0))
+		goto out_err_send_buf;
+
 	return cl;
 
+out_err_send_buf:
+	gwhf_client_destroy_raw_buf(&cl->send_buf);
 out_err_recv_buf:
 	gwhf_client_destroy_raw_buf(&cl->recv_buf);
 out_err:
@@ -123,6 +130,9 @@ void gwhf_client_put(struct gwhf_client_slot *gwhf, struct gwhf_client *cl)
 	uint16_t idx = cl - gwhf->clients;
 
 	gwhf_sock_close(&cl->fd);
+	gwhf_stream_destroy_all(cl);
+	gwhf_client_destroy_raw_buf(&cl->send_buf);
+	gwhf_client_destroy_raw_buf(&cl->recv_buf);
 	gwhf_stack16_push(&gwhf->stack, idx);
 }
 
