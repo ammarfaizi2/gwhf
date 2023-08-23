@@ -205,7 +205,7 @@ struct gwhf_client_stream {
 	struct gwhf_http_req		req;
 };
 
-struct gwhf_ssl_buffer {
+struct gwhf_raw_buf {
 	char		*buf;
 	uint32_t	len;
 	uint32_t	alloc;
@@ -223,10 +223,10 @@ struct gwhf_client {
 	struct sockaddr_gwhf		addr;
 
 	/*
-	 * SSL buffers.
+	 * Raw buffer.
 	 */
-	struct gwhf_ssl_buffer		ssl_req_buf;
-	struct gwhf_ssl_buffer		ssl_res_buf;
+	struct gwhf_raw_buf		recv_buf;
+	struct gwhf_raw_buf		send_buf;
 
 	/*
 	 * Internal data.
@@ -247,6 +247,11 @@ struct gwhf_client {
 	 * The index of current used stream.
 	 */
 	uint32_t			cur_stream;
+
+	/*
+	 * Is the pollout set?
+	 */
+	bool				pollout_set;
 };
 
 #ifdef __cplusplus

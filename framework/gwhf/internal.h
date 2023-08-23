@@ -2,8 +2,8 @@
 /*
  * Copyright (C) 2023  Hoody Ltd.
  */
-#ifndef GWHF__INTERNAL_H
-#define GWHF__INTERNAL_H
+#ifndef FRAMEWORK__GWHF__INTERNAL_H
+#define FRAMEWORK__GWHF__INTERNAL_H
 
 #include <gwhf/gwhf.h>
 
@@ -43,4 +43,4 @@ struct gwhf_internal {
 #endif
 };
 
-#endif /* #ifndef GWHF__INTERNAL_H */
+#endif /* #ifndef FRAMEWORK__GWHF__INTERNAL_H */

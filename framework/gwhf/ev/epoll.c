@@ -1,4 +1,7 @@
-
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2023  Hoody Ltd.
+ */
 #include "./epoll.h"
 #include <string.h>
 #include <stdlib.h>
@@ -396,26 +399,95 @@ static int handle_event_fd(struct gwhf_worker *wrk)
 static int handle_event_client_recv(struct gwhf_worker *wrk,
 				    struct gwhf_client *cl)
 {
-	char __buf[4096];
-	void *buf = __buf;
-	size_t len;
+	uint32_t loop_count = 0;
 	int ret;
 
-	len = sizeof(__buf);
-	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
-	if (ret < 0)
+	while (1) {
+		size_t len = 0;
+		void *buf;
+
+		ret = gwhf_client_get_recv_buf(cl, &buf, &len);
+		if (ret < 0)
+			break;
+
+		ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
+		if (ret < 0)
+			break;
+
+		if (!ret) {
+			ret = -ECONNRESET;
+			break;
+		}
+
+		gwhf_client_advance_recv_buf(cl, (size_t)ret);
+		ret = gwhf_client_consume_recv_buf(cl);
+		if (ret != -EAGAIN)
+			break;
+
+		if (loop_count++ > 16)
+			break;
+	}
+
+	if (ret == -EAGAIN || ret == -EINTR)
+		ret = 0;
+
+	return ret;
+}
+
+static int toggle_pollout(struct gwhf_worker *wrk, struct gwhf_client *cl,
+			  bool set)
+{
+	union epoll_data data;
+	uint32_t events;
+	int ret;
+
+	if (set == cl->pollout_set)
 		return 0;
 
-	if (!ret)
-		return -ECONNRESET;
+	data.ptr = cl;
+	events = EPOLLIN | (set ? EPOLLOUT : 0);
+	ret = epoll_mod(wrk->ev.ep_fd, &cl->fd, events, data);
+	if (ret < 0)
+		return ret;
 
+	cl->pollout_set = set;
 	return 0;
 }
 
 static int handle_event_client_send(struct gwhf_worker *wrk,
 				    struct gwhf_client *cl)
 {
-	return 0;
+	uint32_t loop_count = 0;
+	int ret;
+
+	while (1) {
+		const void *buf;
+		size_t len = 0;
+
+		ret = gwhf_client_get_send_buf(cl, &buf, &len);
+		if (ret < 0)
+			break;
+
+		if (!len)
+			break;
+
+		ret = gwhf_sock_send(&cl->fd, buf, len, 0);
+		if (ret < 0)
+			break;
+
+		gwhf_client_advance_send_buf(cl, (size_t)ret);
+		if (loop_count++ > 16) {
+			ret = -EAGAIN;
+			break;
+		}
+	}
+
+	if (ret == -EAGAIN || ret == -EINTR)
+		ret = toggle_pollout(wrk, cl, true);
+	else if (ret == 0)
+		ret = toggle_pollout(wrk, cl, false);
+
+	return ret;
 }
 
 static void del_client_from_worker(struct gwhf_worker *wrk,

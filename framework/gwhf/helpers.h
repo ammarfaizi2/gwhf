@@ -5,7 +5,7 @@
 #ifndef FRAMEWORK__GWHF__HELPERS_H
 #define FRAMEWORK__GWHF__HELPERS_H
 
-#include "internal.h"
+#include "./internal.h"
 
 void *memdup(const void *src, size_t len);
 void *memdup_more(const void *src, size_t len, size_t more);
