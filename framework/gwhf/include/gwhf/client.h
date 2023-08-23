@@ -177,6 +177,19 @@ struct gwhf_client_stream_buf {
 	uint32_t	alloc;
 };
 
+enum {
+	TCL_IDLE         = 0,
+
+	TCL_RECV_HEADER  = 1,
+	TCL_ROUTE_HEADER = 2,
+
+	TCL_RECV_BODY    = 3,
+	TCL_ROUTE_BODY   = 4,
+
+	TCL_SEND_HEADER  = 5,
+	TCL_SEND_BODY    = 6,
+};
+
 struct gwhf_client_stream {
 	/*
 	 * Request buffer received from the client.
@@ -203,6 +216,11 @@ struct gwhf_client_stream {
 	 * The HTTP request.
 	 */
 	struct gwhf_http_req		req;
+
+	/*
+	 * The state of the stream.
+	 */
+	uint8_t				state;
 };
 
 struct gwhf_raw_buf {
@@ -253,6 +271,12 @@ struct gwhf_client {
 	 */
 	bool				pollout_set;
 };
+
+static inline struct gwhf_client_stream *
+gwhf_client_get_cur_stream(struct gwhf_client *cl)
+{
+	return &cl->streams[cl->cur_stream];
+}
 
 #ifdef __cplusplus
 } /* extern "C" */

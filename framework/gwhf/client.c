@@ -174,9 +174,102 @@ void gwhf_client_advance_recv_buf(struct gwhf_client *cl, size_t len)
 	buf[new_len] = '\0';
 }
 
-int gwhf_client_consume_recv_buf(struct gwhf_client *cl)
+static int consume_recv_buf(struct gwhf_client *cl);
+
+static int consume_header(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
+	uint32_t len = cl->recv_buf.len;
+	char *buf = cl->recv_buf.buf;
+	uint32_t body_len;
+	int ret;
+
+	assert(str->req.hdr.content_length == GWHF_CONLEN_UNSET);
+	ret = gwhf_http_req_parse_header(hdr, buf, len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	/*
+	 * The body may already be in the buffer.
+	 */
+	body_len = len - (uint32_t)ret;
+	if (body_len) {
+		memmove(buf, buf + ret, body_len);
+		cl->recv_buf.len = body_len;
+	}
+
+	str->state = TCL_ROUTE_HEADER;
+	return consume_recv_buf(cl);
+}
+
+static int route_header(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+
+	str->state = TCL_RECV_BODY;
+	return consume_recv_buf(cl);
+}
+
+static int consume_body(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
+	int64_t conlen = hdr->content_length;
+
+	assert(conlen != GWHF_CONLEN_UNSET);
+
+	if (conlen == GWHF_CONLEN_INVALID)
+		return -EINVAL;
+
+	/*
+	 * TODO(ammarfaizi2): Add support for chunked transfer encoding.
+	 */
+	if (conlen == GWHF_CONLEN_CHUNKED)
+		return -EOPNOTSUPP;
+
+	if (conlen == GWHF_CONLEN_NOT_PRESENT) {
+		str->state = TCL_ROUTE_BODY;
+		return consume_recv_buf(cl);
+	}
+}
+
+static int route_body(struct gwhf_client *cl)
 {
 	return 0;
+}
+
+static int consume_recv_buf(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	int ret;
+
+	switch (str->state) {
+	case TCL_IDLE:
+	case TCL_RECV_HEADER:
+		ret = consume_header(cl);
+		break;
+	case TCL_ROUTE_HEADER:
+		ret = route_header(cl);
+		break;
+	case TCL_RECV_BODY:
+		ret = consume_body(cl);
+		break;
+	case TCL_ROUTE_BODY:
+		ret = route_body(cl);
+		break;
+	default:
+		assert(0);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+int gwhf_client_consume_recv_buf(struct gwhf_client *cl)
+{
+	return consume_recv_buf(cl);
 }
 
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len)

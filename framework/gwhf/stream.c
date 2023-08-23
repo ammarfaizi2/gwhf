@@ -38,13 +38,22 @@ int gwhf_stream_init(struct gwhf_client_stream *str)
 		return ret;
 
 	ret = init_stream_buf(&str->res_buf);
-	if (ret) {
-		destroy_stream_buf(&str->req_buf);
-		return ret;
-	}
+	if (ret)
+		goto out_req_buf;
+
+	ret = gwhf_http_req_init(&str->req);
+	if (ret)
+		goto out_res_buf;
 
 	str->sent_len = 0;
+	str->state = TCL_IDLE;
 	return 0;
+
+out_res_buf:
+	destroy_stream_buf(&str->res_buf);
+out_req_buf:
+	destroy_stream_buf(&str->req_buf);
+	return ret;
 }
 
 int gwhf_stream_init_all(struct gwhf_client *cl, uint32_t nr_streams)
@@ -65,6 +74,7 @@ int gwhf_stream_init_all(struct gwhf_client *cl, uint32_t nr_streams)
 
 	cl->streams = streams;
 	cl->nr_streams = nr_streams;
+	cl->cur_stream = 0;
 	return 0;
 
 out_err:
@@ -91,4 +101,5 @@ void gwhf_stream_destroy(struct gwhf_client_stream *str)
 {
 	destroy_stream_buf(&str->req_buf);
 	destroy_stream_buf(&str->res_buf);
+	gwhf_http_req_destroy(&str->req);
 }
