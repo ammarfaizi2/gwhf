@@ -11,6 +11,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define GWHF_RAW_BUF_INIT_SIZE 4096
 
@@ -186,7 +187,7 @@ static int consume_header(struct gwhf_client *cl)
 	int ret;
 
 	assert(str->req.hdr.content_length == GWHF_CONLEN_UNSET);
-	ret = gwhf_http_req_parse_header(hdr, buf, len);
+	ret = gwhf_http_req_parse_header(hdr, buf, len + 1);
 	if (unlikely(ret < 0))
 		return ret;
 
@@ -215,11 +216,14 @@ static int consume_body(struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
 	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
+	struct gwhf_raw_buf *buf = &cl->recv_buf;
 	int64_t conlen = hdr->content_length;
+	int ret;
 
+	printf("conlen = %ld\n", conlen);
 	assert(conlen != GWHF_CONLEN_UNSET);
 
-	if (conlen == GWHF_CONLEN_INVALID)
+	if (unlikely(conlen == GWHF_CONLEN_INVALID))
 		return -EINVAL;
 
 	/*
@@ -228,10 +232,26 @@ static int consume_body(struct gwhf_client *cl)
 	if (conlen == GWHF_CONLEN_CHUNKED)
 		return -EOPNOTSUPP;
 
+	ret = gwhf_http_req_body_add(&str->req, buf->buf, buf->len);
+	if (unlikely(ret < 0))
+		return ret;
+
 	if (conlen == GWHF_CONLEN_NOT_PRESENT) {
-		str->state = TCL_ROUTE_BODY;
-		return consume_recv_buf(cl);
+		if (str->req.body_len > 0)
+			return -EINVAL;
+
+		goto out;
 	}
+
+	if (conlen > (int64_t)str->req.body_len)
+		return -EAGAIN;
+
+	if (conlen < (int64_t)str->req.body_len)
+		return -EINVAL;
+
+out:
+	str->state = TCL_ROUTE_BODY;
+	return consume_recv_buf(cl);
 }
 
 static int route_body(struct gwhf_client *cl)

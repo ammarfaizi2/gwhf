@@ -44,10 +44,9 @@ struct gwhf_http_req_hdr {
 
 struct gwhf_http_req {
 	struct gwhf_http_req_hdr	hdr;
-#if 0
 	char				*body;
-	uint32_t			body_len;
-#endif
+	uint64_t			body_len;
+	uint64_t			body_alloc;
 };
 
 static inline const char *gwhf_http_req_get_method(struct gwhf_http_req *req)

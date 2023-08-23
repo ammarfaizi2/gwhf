@@ -11,5 +11,7 @@ int gwhf_http_req_init(struct gwhf_http_req *req);
 void gwhf_http_req_destroy(struct gwhf_http_req *req);
 int gwhf_http_req_parse_header(struct gwhf_http_req_hdr *hdr, const char *buf,
 			       size_t len);
+int gwhf_http_req_body_add(struct gwhf_http_req *req, const void *buf,
+			   uint32_t len);
 
 #endif /* #ifndef FRAMEWORK__GWHF__HTTP__REQUEST_H */
