@@ -247,7 +247,8 @@ __cold
 int gwhf_ev_epoll_init_worker(struct gwhf_worker *wrk)
 {
 	int max_events = wrk->ctx->init_arg.ev_epoll.max_events;
-	struct gwhf_internal *ctxi = wrk->ctx->internal;
+	struct gwhf *ctx = wrk->ctx;
+	struct gwhf_internal *ctxi = ctx->internal;
 	struct epoll_event *events;
 	epoll_t ep_fd;
 	evfd_t ev_fd;
@@ -284,6 +285,8 @@ int gwhf_ev_epoll_init_worker(struct gwhf_worker *wrk)
 		err = epoll_add(ep_fd, &ctxi->tcp, EPOLLIN, data);
 		if (err)
 			goto out_ev_fd;
+
+		ctx->stop_accepting = false;
 	}
 
 	wrk->ev.ep_fd = ep_fd;
@@ -356,10 +359,10 @@ static int handle_accept_error(struct gwhf_worker *wrk, int err)
 	if (err == -EAGAIN || err == -EINTR)
 		return 0;
 
-	/*
-	 * TODO(ammarfaizi2): Handle -ENFILE and -EMFILE.
-	 */
-	(void)wrk;
+	if (err == -ENFILE || err == -EMFILE) {
+		wrk->ctx->stop_accepting = true;
+		return epoll_del(wrk->ev.ep_fd, &wrk->ctx->internal->tcp);
+	}
 
 	return 0;
 }
@@ -501,6 +504,21 @@ static void del_client_from_worker(struct gwhf_worker *wrk,
 	epoll_del(wrk->ev.ep_fd, &cl->fd);
 }
 
+static int handle_put(struct gwhf_worker *wrk, struct gwhf_client *cl)
+{
+	struct gwhf *ctx = wrk->ctx;
+	union epoll_data data;
+
+	del_client_from_worker(wrk, cl);
+	gwhf_client_put(&wrk->client_slot, cl);
+	if (!ctx->stop_accepting)
+		return 0;
+
+	data.u64 = 0;
+	ctx->stop_accepting = false;
+	return epoll_add(wrk->ev.ep_fd, &ctx->internal->tcp, EPOLLIN, data);
+}
+
 static int handle_event_client(struct gwhf_worker *wrk, struct epoll_event *ev)
 {
 	struct gwhf_client *cl = ev->data.ptr;
@@ -527,10 +545,8 @@ static int handle_event_client(struct gwhf_worker *wrk, struct epoll_event *ev)
 
 out:
 	cl->data = NULL;
-	if (put) {
-		del_client_from_worker(wrk, cl);
-		gwhf_client_put(&wrk->client_slot, cl);
-	}
+	if (put)
+		return handle_put(wrk, cl);
 
 	return 0;
 }

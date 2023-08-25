@@ -42,6 +42,7 @@ struct gwhf_internal;
 
 struct gwhf {
 	volatile bool		stop;
+	bool			stop_accepting;
 	struct gwhf_internal	*internal;
 	struct gwhf_init_arg	init_arg;
 };
