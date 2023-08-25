@@ -220,7 +220,6 @@ static int consume_body(struct gwhf_client *cl)
 	int64_t conlen = hdr->content_length;
 	int ret;
 
-	printf("conlen = %ld\n", conlen);
 	assert(conlen != GWHF_CONLEN_UNSET);
 
 	if (unlikely(conlen == GWHF_CONLEN_INVALID))
