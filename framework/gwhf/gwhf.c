@@ -152,7 +152,6 @@ static void *run_worker(void *thread_arg)
 
 	ret = __run_worker(wrk);
 
-	destroy_ev(wrk);
 out_client_slot:
 	gwhf_client_destroy_slot(&wrk->client_slot);
 out:
@@ -168,6 +167,7 @@ static int spawn_worker(struct gwhf_worker *wrk)
 static void stop_worker(struct gwhf_worker *wrk)
 {
 	wrk->ctx->stop = true;
+	destroy_ev(wrk);
 	thread_join(wrk->thread, NULL);
 }
 
@@ -249,9 +249,15 @@ out_ctxi:
 static void destroy_internal_state(struct gwhf *ctx)
 {
 	struct gwhf_internal *ctxi = ctx->internal;
+	uint32_t i;
+
+	ctx->stop = true;
+	for (i = 0; i < ctxi->nr_workers; i++)
+		stop_worker(&ctxi->workers[i]);
 
 	gwhf_signal_revert_sig_handler(ctx);
 	destroy_socket(ctx);
+	free(ctxi->workers);
 	free(ctxi);
 }
 

@@ -257,6 +257,7 @@ int gwhf_ev_epoll_init_worker(struct gwhf_worker *wrk)
 		return -EINVAL;
 
 	memset(&ev_fd, 0, sizeof(ev_fd));
+	memset(&ep_fd, 0, sizeof(ep_fd));
 	events = calloc(max_events, sizeof(*events));
 	if (!events)
 		return -ENOMEM;
@@ -308,6 +309,7 @@ void gwhf_ev_epoll_destroy_worker(struct gwhf_worker *wrk)
 		epoll_del(wrk->ev.ep_fd, &ctxi->tcp);
 	close_event_fd(&wrk->ev.ep_fd);
 	epoll_close(wrk->ev.ep_fd);
+	free(wrk->ev.events);
 }
 
 static int poll_events(struct gwhf_worker *wrk)
@@ -357,6 +359,7 @@ static int handle_accept_error(struct gwhf_worker *wrk, int err)
 	/*
 	 * TODO(ammarfaizi2): Handle -ENFILE and -EMFILE.
 	 */
+	(void)wrk;
 
 	return 0;
 }
@@ -401,6 +404,8 @@ static int handle_event_client_recv(struct gwhf_worker *wrk,
 {
 	uint32_t loop_count = 0;
 	int ret;
+
+	(void)wrk;
 
 	while (1) {
 		size_t len = 0;

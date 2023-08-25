@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 __cold
 int gwhf_stack16_init(struct gwhf_stack16 *stack, uint16_t size)

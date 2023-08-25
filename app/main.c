@@ -20,8 +20,10 @@ int main(void)
 		return 1;
 	}
 
+	printf("Starting...\n");
 	ret = gwhf_run(&ctx);
 	gwhf_destroy(&ctx);
 	gwhf_global_destroy();
+	printf("Exiting...\n");
 	return ret;
 }

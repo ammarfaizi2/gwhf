@@ -24,6 +24,26 @@ static void init_client_first(struct gwhf_client *cl)
 #endif
 }
 
+static int gwhf_client_init_raw_buf(struct gwhf_raw_buf *rb)
+{
+	rb->buf = malloc(GWHF_RAW_BUF_INIT_SIZE);
+	if (!rb->buf)
+		return -ENOMEM;
+
+	rb->alloc = GWHF_RAW_BUF_INIT_SIZE;
+	rb->len = 0;
+	return 0;
+}
+
+static void gwhf_client_destroy_raw_buf(struct gwhf_raw_buf *rb)
+{
+	if (!rb->buf)
+		return;
+
+	free(rb->buf);
+	memset(rb, 0, sizeof(*rb));
+}
+
 int gwhf_client_init_slot(struct gwhf_client_slot *gwhf, uint32_t max_clients)
 {
 	uint16_t i;
@@ -48,33 +68,26 @@ int gwhf_client_init_slot(struct gwhf_client_slot *gwhf, uint32_t max_clients)
 	return 0;
 }
 
-void gwhf_client_destroy_slot(struct gwhf_client_slot *gwhf)
+void gwhf_client_destroy_slot(struct gwhf_client_slot *cs)
 {
-	if (!gwhf->clients)
+	struct gwhf_client *clients = cs->clients;
+	uint32_t i;
+
+	if (!clients)
 		return;
 
-	free(gwhf->clients);
-	gwhf_stack16_destroy(&gwhf->stack);
-}
+	for (i = 0; i < cs->stack.size; i++) {
+		struct gwhf_client *cl = &clients[i];
 
-static int gwhf_client_init_raw_buf(struct gwhf_raw_buf *rb)
-{
-	rb->buf = malloc(GWHF_RAW_BUF_INIT_SIZE);
-	if (!rb->buf)
-		return -ENOMEM;
+		gwhf_sock_close(&cl->fd);
+		gwhf_stream_destroy_all(cl);
+		gwhf_client_destroy_raw_buf(&cl->send_buf);
+		gwhf_client_destroy_raw_buf(&cl->recv_buf);
+	}
 
-	rb->alloc = GWHF_RAW_BUF_INIT_SIZE;
-	rb->len = 0;
-	return 0;
-}
-
-static void gwhf_client_destroy_raw_buf(struct gwhf_raw_buf *rb)
-{
-	if (!rb->buf)
-		return;
-
-	free(rb->buf);
-	memset(rb, 0, sizeof(*rb));
+	free(clients);
+	gwhf_stack16_destroy(&cs->stack);
+	memset(cs, 0, sizeof(*cs));
 }
 
 static int gwhf_client_update_raw_buf_alloc_len(struct gwhf_raw_buf *rb,
