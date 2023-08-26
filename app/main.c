@@ -106,7 +106,6 @@ int main(void)
 
 	printf("Starting...\n");
 	ret = gwhf_run(&ctx);
-	printf("ret = %d\n", ret);
 	gwhf_destroy(&ctx);
 	gwhf_global_destroy();
 	printf("Exiting...\n");
