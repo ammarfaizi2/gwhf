@@ -334,12 +334,29 @@ int gwhf_client_consume_recv_buf(struct gwhf_client *cl)
 __hot
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len)
 {
+	if (!cl->send_buf.len)
+		return -ENOBUFS;
+
+	*buf = cl->send_buf.buf;
+	*len = (size_t)cl->send_buf.len;
 	return 0;
 }
 
 __hot
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len)
 {
+	struct gwhf_raw_buf *sb = &cl->send_buf;
+	uint32_t new_len;
+
+	new_len = sb->len - len;
+	assert(len <= cl->send_buf.len);
+
+	if (new_len) {
+		memmove(sb->buf, sb->buf + len, new_len);
+		sb->len = new_len;
+	} else {
+		sb->len = 0;
+	}
 }
 
 __hot
