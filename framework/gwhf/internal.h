@@ -18,6 +18,10 @@
 #include "./os/linux/signal.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct gwhf_worker {
 	union {
 		struct {
@@ -47,5 +51,9 @@ struct gwhf_internal {
 	struct sigaction	old_act[3];
 #endif
 };
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* #ifndef FRAMEWORK__GWHF__INTERNAL_H */

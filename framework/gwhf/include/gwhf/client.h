@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2023  Hoody Ltd.
+ * Copyright (C) 2023 Hoody Ltd.
  */
 
 #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__CLIENT_H
@@ -44,10 +44,9 @@ struct gwhf_http_req_hdr {
 
 struct gwhf_http_req {
 	struct gwhf_http_req_hdr	hdr;
-#if 0
 	char				*body;
-	uint32_t			body_len;
-#endif
+	uint64_t			body_len;
+	uint64_t			body_alloc;
 };
 
 static inline const char *gwhf_http_req_get_method(struct gwhf_http_req *req)
@@ -75,6 +74,9 @@ static inline const char *gwhf_http_req_get_version(struct gwhf_http_req *req)
 
 GWHF_EXPORT const char *gwhf_http_req_get_hdr(struct gwhf_http_req *req,
 					      const char *key);
+
+int gwhf_http_req_init(struct gwhf_http_req *req);
+void gwhf_http_req_destroy(struct gwhf_http_req *req);
 
 struct gwhf_http_res_hdr {
 	struct gwhf_http_hdr_field_str	*hdr_fields;
@@ -174,6 +176,19 @@ struct gwhf_client_stream_buf {
 	uint32_t	alloc;
 };
 
+enum {
+	TCL_IDLE         = 0,
+
+	TCL_RECV_HEADER  = 1,
+	TCL_ROUTE_HEADER = 2,
+
+	TCL_RECV_BODY    = 3,
+	TCL_ROUTE_BODY   = 4,
+
+	TCL_SEND_HEADER  = 5,
+	TCL_SEND_BODY    = 6,
+};
+
 struct gwhf_client_stream {
 	/*
 	 * Request buffer received from the client.
@@ -200,9 +215,14 @@ struct gwhf_client_stream {
 	 * The HTTP request.
 	 */
 	struct gwhf_http_req		req;
+
+	/*
+	 * The state of the stream.
+	 */
+	uint8_t				state;
 };
 
-struct gwhf_ssl_buffer {
+struct gwhf_raw_buf {
 	char		*buf;
 	uint32_t	len;
 	uint32_t	alloc;
@@ -220,10 +240,10 @@ struct gwhf_client {
 	struct sockaddr_gwhf		addr;
 
 	/*
-	 * SSL buffers.
+	 * Raw buffer.
 	 */
-	struct gwhf_ssl_buffer		ssl_req_buf;
-	struct gwhf_ssl_buffer		ssl_res_buf;
+	struct gwhf_raw_buf		recv_buf;
+	struct gwhf_raw_buf		send_buf;
 
 	/*
 	 * Internal data.
@@ -244,6 +264,11 @@ struct gwhf_client {
 	 * The index of current used stream.
 	 */
 	uint32_t			cur_stream;
+
+	/*
+	 * Is the pollout set?
+	 */
+	bool				pollout_set;
 };
 
 static inline struct gwhf_client_stream *
@@ -251,13 +276,6 @@ gwhf_client_get_cur_stream(struct gwhf_client *cl)
 {
 	return &cl->streams[cl->cur_stream];
 }
-
-void gwhf_destroy_client_stream(struct gwhf_client_stream *cs);
-void gwhf_destroy_client_streams(struct gwhf_client *cl);
-int gwhf_init_client_stream(struct gwhf_client_stream *cs);
-int gwhf_init_client_streams(struct gwhf_client *cl, uint32_t nr_streams);
-int gwhf_init_client_ssl_buf(struct gwhf_client *cl);
-void gwhf_destroy_client_ssl_buf(struct gwhf_client *cl);
 
 #ifdef __cplusplus
 } /* extern "C" */

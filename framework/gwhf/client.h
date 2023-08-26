@@ -8,6 +8,10 @@
 #include <gwhf/stack.h>
 #include <gwhf/gwhf.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct gwhf_client_slot {
 	struct gwhf_client	*clients;
 	struct gwhf_stack16	stack;
@@ -24,5 +28,9 @@ int gwhf_client_consume_recv_buf(struct gwhf_client *cl);
 
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len);
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* #ifndef GWHF__CLIENT_H */

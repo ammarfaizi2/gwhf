@@ -444,14 +444,89 @@ static int handle_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->ev.ev_fd);
 }
 
+static int do_recv(struct gwhf_client *cl)
+{
+	size_t len;
+	void *buf;
+	int ret;
+
+	ret = gwhf_client_get_recv_buf(cl, &buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
+	if (unlikely(ret < 0))
+		return ret;
+
+	gwhf_client_advance_recv_buf(cl, (size_t)ret);
+	ret = gwhf_client_consume_recv_buf(cl);
+	if (unlikely(ret < 0))
+		return ret;
+
+	return 0;
+}
+
+static int do_send(struct gwhf_client *cl)
+{
+	const void *buf;
+	size_t len;
+	int ret;
+
+	ret = gwhf_client_get_send_buf(cl, &buf, &len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	if (!len)
+		return -EAGAIN;
+
+	ret = gwhf_sock_send(&cl->fd, buf, len, 0);
+	if (unlikely(ret < 0))
+		return ret;
+
+	gwhf_client_advance_send_buf(cl, (size_t)ret);
+	return 0;
+}
+
 static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 {
-	return 0;
+	static const uint32_t max_try = 16;
+	uint32_t i = 0;
+	int ret = 0;
+
+	while (i++ < max_try) {
+		ret = do_recv(cl);
+		if (ret == -EINTR)
+			continue;
+
+		if (ret)
+			break;
+	}
+
+	if (ret == -EAGAIN)
+		ret = 0;
+
+	return ret;
 }
 
 static int handle_client_send(struct gwhf_worker *wrk, struct gwhf_client *cl)
 {
-	return 0;
+	static const uint32_t max_try = 16;
+	uint32_t i = 0;
+	int ret = 0;
+
+	while (i++ < max_try) {
+		ret = do_send(cl);
+		if (ret == -EINTR)
+			continue;
+
+		if (ret)
+			break;
+	}
+
+	if (ret == -EAGAIN)
+		ret = 0;
+
+	return ret;
 }
 
 static int handle_put_client(struct gwhf_worker *wrk, struct gwhf_client *cl)
@@ -539,6 +614,7 @@ static int handle_events(struct gwhf_worker *wrk, int nr_events)
 	return 0;
 }
 
+__hot
 int gwhf_ev_epoll_run(struct gwhf_worker *wrk)
 {
 	struct gwhf *ctx = wrk->ctx;
