@@ -12,9 +12,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-static int consume_recv_buf(struct gwhf_client *cl);
+static int consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl);
 
-static int consume_header(struct gwhf_client *cl)
+static int consume_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
 	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
@@ -40,18 +40,10 @@ static int consume_header(struct gwhf_client *cl)
 	}
 
 	str->state = TCL_ROUTE_HEADER;
-	return consume_recv_buf(cl);
+	return consume_recv_buf(ctx, cl);
 }
 
-static int route_header(struct gwhf_client *cl)
-{
-	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
-
-	str->state = TCL_RECV_BODY;
-	return consume_recv_buf(cl);
-}
-
-static int consume_body(struct gwhf_client *cl)
+static int consume_body(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
 	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
@@ -108,15 +100,34 @@ static int consume_body(struct gwhf_client *cl)
 
 out:
 	str->state = TCL_ROUTE_BODY;
-	return consume_recv_buf(cl);
+	return consume_recv_buf(ctx, cl);
 }
 
-static int route_body(struct gwhf_client *cl)
+static int route_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	int ret;
+
+	ret = gwhf_route_exec_on_header(ctx, cl);
+	if (unlikely(ret != GWHF_ROUTE_CONTINUE))
+		return ret;
+
+	str->state = TCL_RECV_BODY;
+	return consume_recv_buf(ctx, cl);
+}
+
+static int route_body(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	int ret;
+
+	ret = gwhf_route_exec_on_body(ctx, cl);
+	if (unlikely(ret != GWHF_ROUTE_CONTINUE))
+		return ret;
+
 	return 0;
 }
 
-static int consume_recv_buf(struct gwhf_client *cl)
+static int consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
 	int ret;
@@ -124,16 +135,16 @@ static int consume_recv_buf(struct gwhf_client *cl)
 	switch (str->state) {
 	case TCL_IDLE:
 	case TCL_RECV_HEADER:
-		ret = consume_header(cl);
+		ret = consume_header(ctx, cl);
 		break;
 	case TCL_ROUTE_HEADER:
-		ret = route_header(cl);
+		ret = route_header(ctx, cl);
 		break;
 	case TCL_RECV_BODY:
-		ret = consume_body(cl);
+		ret = consume_body(ctx, cl);
 		break;
 	case TCL_ROUTE_BODY:
-		ret = route_body(cl);
+		ret = route_body(ctx, cl);
 		break;
 	default:
 		assert(0);
@@ -327,9 +338,9 @@ void gwhf_client_advance_recv_buf(struct gwhf_client *cl, size_t len)
 }
 
 __hot
-int gwhf_client_consume_recv_buf(struct gwhf_client *cl)
+int gwhf_client_consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 {
-	return consume_recv_buf(cl);
+	return consume_recv_buf(ctx, cl);
 }
 
 __hot

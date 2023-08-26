@@ -20,6 +20,13 @@ enum {
 	GWHF_EV_IO_URING = 5
 };
 
+enum {
+	GWHF_ROUTE_CONTINUE  = 0,
+	GWHF_ROUTE_NOT_FOUND = 1,
+	GWHF_ROUTE_ERROR     = 2,
+	GWHF_ROUTE_EXECUTED  = 3
+};
+
 struct gwhf_init_arg_ev_epoll {
 	int		max_events;
 	int		timeout;
@@ -56,8 +63,8 @@ GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT const char *gwhf_strerror(int err);
 
 typedef int (*gwhf_route_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *arg);
-typedef int (*gwhf_route_init_cb)(void *arg);
-typedef int (*gwhf_route_free_cb)(void *arg);
+typedef int (*gwhf_route_init_cb)(struct gwhf *ctx, void *arg);
+typedef void (*gwhf_route_free_cb)(struct gwhf *ctx, void *arg);
 
 GWHF_EXPORT int gwhf_route_add_on_body(struct gwhf *ctx, gwhf_route_cb cb,
 				       gwhf_route_init_cb init_cb,

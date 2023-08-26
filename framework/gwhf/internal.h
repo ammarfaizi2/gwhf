@@ -12,6 +12,7 @@
 #include "./client.h"
 #include "./ev/epoll.h"
 #include "./helpers.h"
+#include "./route.h"
 #include "./http/request.h"
 
 #if defined(__linux__)

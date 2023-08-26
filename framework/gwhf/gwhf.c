@@ -286,6 +286,7 @@ static void destroy_internal_state(struct gwhf *ctx)
 
 	destroy_workers(ctx);
 	destroy_socket(ctx);
+	gwhf_route_destroy(ctx);
 	free(ctxi);
 	memset(ctx, 0, sizeof(*ctx));
 }
@@ -333,6 +334,12 @@ void gwhf_destroy(struct gwhf *ctx)
 
 int gwhf_run(struct gwhf *ctx)
 {
+	int ret;
+
+	ret = gwhf_route_init(ctx);
+	if (ret)
+		return ret;
+
 	return GWHF_PTR_ERR(run_worker(&ctx->internal->workers[0]));
 }
 

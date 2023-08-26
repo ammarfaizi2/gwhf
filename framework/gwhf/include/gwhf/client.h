@@ -80,7 +80,7 @@ void gwhf_http_req_destroy(struct gwhf_http_req *req);
 
 struct gwhf_http_res_hdr {
 	struct gwhf_http_hdr_field_str	*hdr_fields;
-	uint32_t			total_requried_len;
+	uint32_t			total_required_len;
 	uint16_t			nr_hdr_fields;
 	int16_t				status_code;
 };

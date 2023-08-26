@@ -449,7 +449,7 @@ static int handle_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->ev.ev_fd);
 }
 
-static int do_recv(struct gwhf_client *cl)
+static int do_recv(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	size_t len;
 	void *buf;
@@ -467,7 +467,7 @@ static int do_recv(struct gwhf_client *cl)
 		return -ECONNRESET;
 
 	gwhf_client_advance_recv_buf(cl, (size_t)ret);
-	ret = gwhf_client_consume_recv_buf(cl);
+	ret = gwhf_client_consume_recv_buf(ctx, cl);
 	if (unlikely(ret < 0))
 		return ret;
 
@@ -499,7 +499,7 @@ static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 	int ret = 0;
 
 	while (i++ < max_try) {
-		ret = do_recv(cl);
+		ret = do_recv(wrk->ctx, cl);
 		if (ret == -EINTR)
 			continue;
 
