@@ -154,6 +154,36 @@ int gwhf_route_add_on_header(struct gwhf *ctx, gwhf_route_cb cb,
 	return 0;
 }
 
+#ifdef CONFIG_HTTPS
+static int prep_ssl_send_buf(struct gwhf_client *cl, char *buf, size_t len)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	size_t tlen = len * 3u;
+	char *tbuf;
+	int ret;
+
+	ret = SSL_write(cl->ssl, buf, len);
+	if (ret <= 0)
+		return -EIO;
+
+	tbuf = realloc(buf, tlen);
+	if (!tbuf)
+		return -ENOMEM;
+
+	ret = BIO_read(cl->wbio, tbuf, tlen);
+	if (ret <= 0) {
+		free(tbuf);
+		return -EIO;
+	}
+
+	str->state = TCL_SEND_HEADER;
+	cl->send_buf.buf = tbuf;
+	cl->send_buf.len = ret;
+	cl->send_buf.alloc = tlen;
+	return 0;
+}
+#endif /* #ifdef CONFIG_HTTPS */
+
 static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
@@ -161,6 +191,8 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	size_t len;
 	char *buf;
 	int ret;
+
+	(void)ctx;
 
 	if (gwhf_client_need_keep_alive_hdr(cl)) {
 		ret = gwhf_http_res_add_hdr(res, "Connection", "keep-alive");
@@ -172,10 +204,22 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	if (ret)
 		return ret;
 
+#ifdef CONFIG_HTTPS
+	if (cl->https_state == GWHF_HTTPS_ON) {
+		return prep_ssl_send_buf(cl, buf, len);
+	} else {
+		str->state = TCL_SEND_HEADER;
+		cl->send_buf.buf = buf;
+		cl->send_buf.len = len;
+		cl->send_buf.alloc = len;
+	}
+#else  /* #ifdef CONFIG_HTTPS */
 	str->state = TCL_SEND_HEADER;
 	cl->send_buf.buf = buf;
 	cl->send_buf.len = len;
 	cl->send_buf.alloc = len;
+#endif  /* #ifdef CONFIG_HTTPS */
+
 	return 0;
 }
 

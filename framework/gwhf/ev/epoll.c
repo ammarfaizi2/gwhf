@@ -486,6 +486,12 @@ static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 		ret = gwhf_client_consume_recv_buf(wrk->ctx, cl);
 		if (ret != -EAGAIN)
 			break;
+
+		if (gwhf_client_has_send_buf(cl)) {
+			struct epoll_event *ev = cl->data;
+			ev->events |= EPOLLOUT;
+			return 0;
+		}
 	}
 
 	if (ret == -EAGAIN || ret == -EINTR)
