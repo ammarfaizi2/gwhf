@@ -582,8 +582,10 @@ static int handle_client_event(struct gwhf_worker *wrk, struct epoll_event *ev)
 	struct gwhf_client *cl = ev->data.ptr;
 	int put = 0;
 
-	if (unlikely(ev->events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)))
+	if (unlikely(ev->events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+		put = 1;
 		goto out;
+	}
 
 	cl->data = ev;
 	if (ev->events & EPOLLIN) {
