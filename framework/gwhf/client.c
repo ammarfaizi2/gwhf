@@ -190,6 +190,7 @@ static void reset_client(struct gwhf_client *cl)
 	gwhf_client_destroy_raw_buf(&cl->send_buf);
 	gwhf_client_destroy_raw_buf(&cl->recv_buf);
 	gwhf_stream_destroy_all(cl);
+	cl->pollout_set = false;
 }
 
 __cold
@@ -426,7 +427,7 @@ bool gwhf_client_need_keep_alive_hdr(struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
 
-	if (!gwhf_http_res_get_hdr(&str->res, "connection"))
+	if (gwhf_http_res_get_hdr(&str->res, "connection"))
 		return false;
 
 	return gwhf_client_should_be_kept_alive(cl);

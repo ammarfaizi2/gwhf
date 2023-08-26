@@ -359,10 +359,15 @@ static int start_accepting(struct gwhf_worker *wrk)
 static int handle_accept_error(struct gwhf_worker *wrk, int err)
 {
 	if (err == -EINTR)
-		return 0;
+		return -EAGAIN;
 
-	if (err == -ENFILE || err == -EMFILE)
-		return stop_accepting(wrk);
+	if (err == -ENFILE || err == -EMFILE) {
+		int ret = stop_accepting(wrk);
+		if (ret < 0)
+			return ret;
+
+		return -EAGAIN;
+	}
 
 	return err;
 }
@@ -449,31 +454,20 @@ static int handle_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->ev.ev_fd);
 }
 
-static int do_send(struct gwhf_client *cl)
-{
-	const void *buf;
-	size_t len;
-	int ret;
-
-	ret = gwhf_client_get_send_buf(cl, &buf, &len);
-	if (unlikely(ret < 0))
-		return ret;
-
-	ret = gwhf_sock_send(&cl->fd, buf, len, 0);
-	if (unlikely(ret < 0))
-		return ret;
-
-	gwhf_client_advance_send_buf(cl, (size_t)ret);
-	return 0;
-}
-
 static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 {
+	static const uint32_t max_try = 16;
+	uint32_t try_count = 0;
 	int ret;
 
 	while (1) {
 		size_t len;
 		void *buf;
+
+		if (try_count++ >= max_try) {
+			ret = -EAGAIN;
+			break;
+		}
 
 		ret = gwhf_client_get_recv_buf(cl, &buf, &len);
 		if (unlikely(ret < 0))
@@ -494,8 +488,7 @@ static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 			break;
 	}
 
-	printf("ret recv = %d\n", ret);
-	if (ret == -EAGAIN)
+	if (ret == -EAGAIN || ret == -EINTR)
 		ret = 0;
 
 	if (!ret && gwhf_client_has_send_buf(cl)) {
@@ -529,19 +522,35 @@ static int toggle_pollout(struct gwhf_worker *wrk, struct gwhf_client *cl,
 static int handle_client_send(struct gwhf_worker *wrk, struct gwhf_client *cl)
 {
 	static const uint32_t max_try = 16;
-	uint32_t i = 0;
-	int ret = 0;
+	uint32_t try_count = 0;
+	int ret;
 
-	while (i++ < max_try) {
-		ret = do_send(cl);
-		if (ret == -EINTR)
-			continue;
+	while (1) {
+		const void *buf;
+		size_t len;
 
-		if (ret)
+		if (try_count++ >= max_try) {
+			ret = -EAGAIN;
 			break;
+		}
+
+		ret = gwhf_client_get_send_buf(cl, &buf, &len);
+		if (unlikely(ret < 0))
+			break;
+
+		ret = gwhf_sock_send(&cl->fd, buf, len, 0);
+		if (unlikely(ret < 0))
+			break;
+
+		if (!ret) {
+			ret = -ECONNRESET;
+			break;
+		}
+
+		gwhf_client_advance_send_buf(cl, (size_t)ret);
 	}
 
-	if (ret == -EAGAIN) {
+	if (ret == -EAGAIN || ret == -EINTR) {
 		ret = 0;
 		toggle_pollout(wrk, cl, true);
 	} else if (ret == -ENOBUFS) {
@@ -559,8 +568,13 @@ static int handle_put_client(struct gwhf_worker *wrk, struct gwhf_client *cl)
 	epoll_del(wrk->ev.ep_fd, &cl->fd);
 	gwhf_client_put(&wrk->client_slot, cl);
 
-	if (ctx->stop_accepting)
-		return start_accepting(wrk);
+	if (ctx->stop_accepting) {
+		int ret = start_accepting(wrk);
+		if (ret < 0)
+			return ret;
+
+		return handle_new_conn(wrk);
+	}
 
 	return 0;
 }
@@ -617,13 +631,16 @@ static int poll_events(struct gwhf_worker *wrk)
 
 static int handle_event(struct gwhf_worker *wrk, struct epoll_event *ev)
 {
+	int ret;
+
 	if (ev->data.u64 == 0)
-		return handle_new_conn(wrk);
+		ret = handle_new_conn(wrk);
+	else if (ev->data.u64 == 1)
+		ret = handle_event_fd(wrk);
+	else
+		ret = handle_client_event(wrk, ev);
 
-	if (ev->data.u64 == 1)
-		return handle_event_fd(wrk);
-
-	return handle_client_event(wrk, ev);
+	return ret;
 }
 
 static int handle_events(struct gwhf_worker *wrk, int nr_events)
