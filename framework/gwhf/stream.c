@@ -159,3 +159,48 @@ void gwhf_stream_consume_buf(struct gwhf_client_stream_buf *sb, size_t len)
 	memmove(sb->buf, sb->buf + len, sb->len - len);
 	sb->len -= len;
 }
+
+static int realloc_raw_stream_buf_if_needed(struct gwhf_raw_buf *rbuf,
+					    size_t add_len)
+{
+	size_t new_alloc;
+	size_t new_len;
+	char *new_buf;
+
+	new_len = rbuf->len + add_len;
+	if (new_len <= rbuf->alloc)
+		return 0;
+
+	new_alloc = new_len + 8192;
+	if (unlikely(new_alloc > UINT32_MAX))
+		return -ENOMEM;
+
+	new_buf = realloc(rbuf->buf, new_alloc);
+	if (unlikely(!new_buf))
+		return -ENOMEM;
+
+	rbuf->buf = new_buf;
+	rbuf->alloc = new_alloc;
+	return 0;
+}
+
+int gwhf_stream_append_raw_buf(struct gwhf_raw_buf *rbuf, const void *buf,
+			       size_t len)
+{
+	int ret;
+
+	ret = realloc_raw_stream_buf_if_needed(rbuf, len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	memcpy(rbuf->buf + rbuf->len, buf, len);
+	rbuf->len += len;
+	return 0;
+}
+
+void gwhf_stream_consume_raw_buf(struct gwhf_raw_buf *rbuf, size_t len)
+{
+	assert(len <= rbuf->len);
+	memmove(rbuf->buf, rbuf->buf + len, rbuf->len - len);
+	rbuf->len -= len;
+}

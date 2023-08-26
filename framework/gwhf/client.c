@@ -17,28 +17,16 @@ static int consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl);
 static int consume_header(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_client_stream_buf *buf = &str->req_buf;
 	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
-	uint32_t len = cl->recv_buf.len;
-	char *buf = cl->recv_buf.buf;
-	uint32_t body_len;
 	int ret;
 
 	assert(str->req.hdr.content_length == GWHF_CONLEN_UNSET);
-	ret = gwhf_http_req_parse_header(hdr, buf, len + 1);
+	ret = gwhf_http_req_parse_header(hdr, buf->buf, buf->len + 1);
 	if (unlikely(ret < 0))
 		return ret;
 
-	/*
-	 * The body may already be in the buffer.
-	 */
-	body_len = len - (uint32_t)ret;
-	if (body_len) {
-		memmove(buf, buf + ret, body_len);
-		cl->recv_buf.len = body_len;
-	} else {
-		cl->recv_buf.len = 0;
-	}
-
+	gwhf_stream_consume_buf(buf, (size_t)ret + 1);
 	str->state = TCL_ROUTE_HEADER;
 	return consume_recv_buf(ctx, cl);
 }
@@ -46,8 +34,8 @@ static int consume_header(struct gwhf *ctx, struct gwhf_client *cl)
 static int consume_body(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_client_stream_buf *buf = &str->req_buf;
 	struct gwhf_http_req_hdr *hdr = &str->req.hdr;
-	struct gwhf_raw_buf *buf = &cl->recv_buf;
 	int64_t conlen = hdr->content_length;
 	int ret;
 
@@ -155,6 +143,138 @@ static int consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	return ret;
 }
 
+static int pre_consume_no_https(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_raw_buf *rb = &cl->recv_buf;
+	int ret;
+
+	ret = gwhf_stream_append_buf(&str->req_buf, rb->buf, rb->len + 1);
+	if (unlikely(ret < 0))
+		return ret;
+
+	cl->recv_buf.len = 0;
+	return 0;
+}
+
+#ifdef CONFIG_HTTPS
+static int pre_consume_https(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_raw_buf *rb = &cl->recv_buf;
+	int ret, err, consumed;
+	char tmp[4096];
+
+	ret = BIO_write(cl->rbio, rb->buf, rb->len);
+	if (unlikely(ret <= 0))
+		return -EINVAL;
+
+	consumed = ret;
+	ret = SSL_read(cl->ssl, tmp, sizeof(tmp));
+	if (ret <= 0) {
+		err = SSL_get_error(cl->ssl, ret);
+		switch (err) {
+		case SSL_ERROR_WANT_WRITE:
+		case SSL_ERROR_WANT_READ:
+			return -EAGAIN;
+		default:
+			printf("err q = %d\n", err);
+			return -ECONNABORTED;
+		}
+	}
+
+	ret = gwhf_stream_append_buf(&str->req_buf, tmp, ret);
+	if (unlikely(ret < 0))
+		return ret;
+
+	gwhf_stream_consume_raw_buf(rb, consumed);
+	return 0;
+}
+
+static int handle_tls_handshake(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_raw_buf *rb = &cl->recv_buf;
+	struct gwhf_raw_buf *sb = &cl->send_buf;
+	int ret, err, consumed;
+	char tmp[4096];
+
+	if (!cl->ssl) {
+		ret = gwhf_ssl_create_client(ctx, cl);
+		if (unlikely(ret < 0))
+			return ret;
+	}
+
+	ret = BIO_write(cl->rbio, rb->buf, rb->len);
+	if (unlikely(ret <= 0))
+		return -EINVAL;
+
+	consumed = ret;
+	ret = SSL_do_handshake(cl->ssl);
+	if (ret == 1) {
+		printf("handshake ok!\n");
+		cl->https_state = GWHF_HTTPS_ON;
+		return 0;
+	}
+
+	err = SSL_get_error(cl->ssl, ret);
+	switch (err) {
+	case SSL_ERROR_WANT_ACCEPT:
+	case SSL_ERROR_WANT_WRITE:
+	case SSL_ERROR_WANT_READ:
+		printf("consumed: %d\n", consumed);
+		printf("rb len = %d\n", rb->len);
+		gwhf_stream_consume_raw_buf(rb, consumed);
+		break;
+	default:
+		printf("off; err: %d\n", err);
+		cl->https_state = GWHF_HTTPS_OFF;
+		gwhf_ssl_destroy_client(cl);
+		return pre_consume_no_https(ctx, cl);
+	}
+
+	ret = BIO_read(cl->wbio, tmp, sizeof(tmp));
+	if (unlikely(ret <= 0))
+		return -EINVAL;
+
+	ret = gwhf_stream_append_raw_buf(sb, tmp, ret);
+	if (unlikely(ret < 0))
+		return ret;
+
+	printf("handshake!\n");
+	return 0;
+}
+
+static int pre_consume_recv(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	int ret;
+
+	printf("https state: %d\n", cl->https_state);
+	switch (cl->https_state) {
+	case GWHF_HTTPS_UNKNOWN:
+		ret = handle_tls_handshake(ctx, cl);
+		break;
+	case GWHF_HTTPS_ON:
+		ret = pre_consume_https(ctx, cl);
+		break;
+	case GWHF_HTTPS_OFF:
+		ret = pre_consume_no_https(ctx, cl);
+		break;
+	default:
+		assert(0);
+		ret = -EINVAL;
+		break;
+	}
+
+	printf("pre ret = %d\n", ret);
+	return ret;
+}
+#else
+static int pre_consume_recv(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	return pre_consume_no_https(ctx, cl);
+}
+#endif
+
 static int gwhf_client_init_raw_buf(struct gwhf_raw_buf *rb)
 {
 	rb->buf = malloc(4096);
@@ -181,6 +301,10 @@ static void init_client_first(struct gwhf_client *cl)
 	cl->fd.fd = INVALID_SOCKET;
 #else
 	cl->fd.fd = -1;
+#endif
+
+#ifdef CONFIG_HTTPS
+	cl->https_state = GWHF_HTTPS_UNKNOWN;
 #endif
 }
 
@@ -345,6 +469,12 @@ void gwhf_client_advance_recv_buf(struct gwhf_client *cl, size_t len)
 __hot
 int gwhf_client_consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 {
+	int ret;
+
+	ret = pre_consume_recv(ctx, cl);
+	if (unlikely(ret < 0))
+		return ret;
+
 	return consume_recv_buf(ctx, cl);
 }
 
@@ -376,9 +506,13 @@ int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *l
 	int ret;
 
 	if (!cl->send_buf.len) {
-		ret = handle_keep_alive(cl);
-		if (ret < 0)
-			return ret;
+		struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+
+		if (str->state != TCL_IDLE) {
+			ret = handle_keep_alive(cl);
+			if (ret < 0)
+				return ret;
+		}
 
 		return -ENOBUFS;
 	}

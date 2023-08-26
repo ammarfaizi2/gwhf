@@ -22,6 +22,11 @@ int gwhf_stream_append_buf(struct gwhf_client_stream_buf *sb, const void *buf,
 
 void gwhf_stream_consume_buf(struct gwhf_client_stream_buf *sb, size_t len);
 
+int gwhf_stream_append_raw_buf(struct gwhf_raw_buf *rbuf, const void *buf,
+			       size_t len);
+
+void gwhf_stream_consume_raw_buf(struct gwhf_raw_buf *rbuf, size_t len);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
