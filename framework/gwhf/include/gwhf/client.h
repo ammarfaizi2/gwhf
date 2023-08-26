@@ -69,6 +69,9 @@ static inline const char *gwhf_http_req_get_qs(struct gwhf_http_req *req)
 
 static inline const char *gwhf_http_req_get_version(struct gwhf_http_req *req)
 {
+	if (!req->hdr.off_version)
+		return NULL;
+
 	return req->hdr.buf + req->hdr.off_version;
 }
 
@@ -108,6 +111,12 @@ enum {
 	GWHF_HTTP_RES_BODY_FD       = 3,
 	GWHF_HTTP_RES_BODY_FD_REF   = 4,
 	GWHF_HTTP_RES_BODY_CALLBACK = 5
+};
+
+enum {
+	GWHF_HTTPS_UNKNOWN = 0,
+	GWHF_HTTPS_ON      = 1,
+	GWHF_HTTPS_OFF     = 2
 };
 
 struct gwhf_http_res_body {
@@ -243,6 +252,15 @@ struct gwhf_client {
 	 */
 	struct sockaddr_gwhf		addr;
 
+#ifdef CONFIG_HTTPS
+	/*
+	 * The SSL data;
+	 */
+	SSL				*ssl;
+	BIO				*rbio;
+	BIO				*wbio;
+#endif
+
 	/*
 	 * Raw buffer.
 	 */
@@ -273,6 +291,13 @@ struct gwhf_client {
 	 * Is the pollout set?
 	 */
 	bool				pollout_set;
+
+#ifdef CONFIG_HTTPS
+	/*
+	 * Is the client using HTTPS?
+	 */
+	uint8_t				https_state;
+#endif
 };
 
 static inline struct gwhf_client_stream *

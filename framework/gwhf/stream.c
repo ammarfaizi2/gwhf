@@ -5,6 +5,7 @@
 
 #include "./stream.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -112,4 +113,49 @@ void gwhf_stream_destroy(struct gwhf_client_stream *str)
 	destroy_stream_buf(&str->res_buf);
 	gwhf_http_req_destroy(&str->req);
 	gwhf_http_res_destroy(&str->res);
+}
+
+static int realloc_stream_buf_if_needed(struct gwhf_client_stream_buf *sb,
+					size_t add_len)
+{
+	size_t new_alloc;
+	size_t new_len;
+	char *new_buf;
+
+	new_len = sb->len + add_len;
+	if (new_len <= sb->alloc)
+		return 0;
+
+	new_alloc = new_len + 8192;
+	if (unlikely(new_alloc > UINT32_MAX))
+		return -ENOMEM;
+
+	new_buf = realloc(sb->buf, new_alloc);
+	if (unlikely(!new_buf))
+		return -ENOMEM;
+
+	sb->buf = new_buf;
+	sb->alloc = new_alloc;
+	return 0;
+}
+
+int gwhf_stream_append_buf(struct gwhf_client_stream_buf *sb, const void *buf,
+			   size_t len)
+{
+	int ret;
+
+	ret = realloc_stream_buf_if_needed(sb, len);
+	if (unlikely(ret < 0))
+		return ret;
+
+	memcpy(sb->buf + sb->len, buf, len);
+	sb->len += len;
+	return 0;
+}
+
+void gwhf_stream_consume_buf(struct gwhf_client_stream_buf *sb, size_t len)
+{
+	assert(len <= sb->len);
+	memmove(sb->buf, sb->buf + len, sb->len - len);
+	sb->len -= len;
 }

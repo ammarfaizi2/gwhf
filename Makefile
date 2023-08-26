@@ -70,9 +70,9 @@ else
 		SPECFLAGS += -DGWHF_ARCH_ARM
 		GWHF_ARCH := arm
 	endif
-	LDLIBS += -lpthread
-	LDFLAGS += -fpic -fPIC
-	SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE -fpic -fPIC
+	override LDLIBS += -lpthread -lcrypto -lssl
+	override LDFLAGS += -fpic -fPIC
+	SPECFLAGS += -DCONFIG_HTTPS -DUSE_POSIX_THREAD -D_GNU_SOURCE -fpic -fPIC
 	LIBGWHF := libgwhf.so
 	TARGET := main
 endif
@@ -102,7 +102,8 @@ endif
 
 ifeq ($(GWHF_OS),linux)
 	C_SRCS_FRAMEWORK += \
-		framework/gwhf/os/linux/signal.c
+		framework/gwhf/os/linux/signal.c \
+		framework/gwhf/ssl.c
 endif
 
 C_SRCS_APP := app/main.c

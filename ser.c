@@ -14,7 +14,7 @@ static SSL_CTX *gwhf_init_ssl_ctx(void)
 	const char *CERT_FILE = "q.pem";
 	const char *KEY_FILE = "q.key";
 	const SSL_METHOD *method;
-	SSL_CTX* ctx;
+	SSL_CTX *ctx;
 
 	SSL_library_init();
 	SSL_load_error_strings();

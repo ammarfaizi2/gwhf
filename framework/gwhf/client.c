@@ -186,6 +186,10 @@ static void init_client_first(struct gwhf_client *cl)
 
 static void reset_client(struct gwhf_client *cl)
 {
+#ifdef CONFIG_HTTPS
+	gwhf_ssl_destroy_client(cl);
+	cl->https_state = GWHF_HTTPS_UNKNOWN;
+#endif
 	gwhf_sock_close(&cl->fd);
 	gwhf_client_destroy_raw_buf(&cl->send_buf);
 	gwhf_client_destroy_raw_buf(&cl->recv_buf);
@@ -417,7 +421,7 @@ bool gwhf_client_should_be_kept_alive(struct gwhf_client *cl)
 		return true;
 
 	tmp = gwhf_http_req_get_version(&str->req);
-	if (!strcmp(tmp, "HTTP/1.1"))
+	if (tmp && !strcmp(tmp, "HTTP/1.1"))
 		return true;
 
 	return false;

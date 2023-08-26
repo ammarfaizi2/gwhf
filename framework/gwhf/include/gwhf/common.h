@@ -23,6 +23,12 @@
 #include <stddef.h>
 #include <errno.h>
 
+#ifdef CONFIG_HTTPS
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/bio.h>
+#endif
+
 #ifndef GWHF_EXPORT
 #define GWHF_EXPORT __attribute__((__visibility__("default")))
 #endif
