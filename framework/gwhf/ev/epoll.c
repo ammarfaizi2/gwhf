@@ -316,7 +316,8 @@ void gwhf_ev_epoll_destroy(struct gwhf_worker *wrk)
 
 	if (wrk->id == 0)
 		epoll_del(wrk->ev.ep_fd, &ctxi->tcp);
-	close_event_fd(&wrk->ev.ep_fd);
+
+	close_event_fd(&wrk->ev.ev_fd);
 	epoll_close(wrk->ev.ep_fd);
 	free(wrk->ev.events);
 }
@@ -363,7 +364,7 @@ static int handle_accept_error(struct gwhf_worker *wrk, int err)
 	if (err == -ENFILE || err == -EMFILE)
 		return stop_accepting(wrk);
 
-	return 0;
+	return err;
 }
 
 static int assign_client(struct gwhf_worker *wrk, struct gwhf_client *cl,
@@ -373,7 +374,7 @@ static int assign_client(struct gwhf_worker *wrk, struct gwhf_client *cl,
 	int ret;
 
 	data.ptr = cl;
-	ret = epoll_add(wrk->ev.ep_fd, &cl->fd, EPOLLIN, data);
+	ret = epoll_add(wrk->ev.ep_fd, sk, EPOLLIN, data);
 	if (ret < 0)
 		return ret;
 
@@ -396,6 +397,10 @@ static int do_accept(struct gwhf_worker *wrk)
 	ret = gwhf_sock_accept(&sk, tcp, &addr, &len);
 	if (unlikely(ret < 0))
 		return handle_accept_error(wrk, ret);
+
+	ret = gwhf_sock_set_nonblock(&sk);
+	if (unlikely(ret < 0))
+		goto out_close;
 
 	if (unlikely(len > (socklen_t)sizeof(addr))) {
 		ret = -EOVERFLOW;
@@ -457,6 +462,9 @@ static int do_recv(struct gwhf_client *cl)
 	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
 	if (unlikely(ret < 0))
 		return ret;
+
+	if (!ret)
+		return -ECONNRESET;
 
 	gwhf_client_advance_recv_buf(cl, (size_t)ret);
 	ret = gwhf_client_consume_recv_buf(cl);
