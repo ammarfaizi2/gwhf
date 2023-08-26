@@ -60,7 +60,7 @@ int cond_broadcast(cond_t *cond);
 int cond_broadcast_n(cond_t *cond, uint32_t n);
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C" */
 #endif
 
 #endif /* #ifndef FRAMEWORK__GWHF__THREAD_H */

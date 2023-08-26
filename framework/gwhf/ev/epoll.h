@@ -9,6 +9,11 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int epoll_t;
 typedef int evfd_t;
 
@@ -34,5 +39,9 @@ int gwhf_ev_epoll_validate_init_arg(struct gwhf_init_arg_ev_epoll *arg);
 int gwhf_ev_epoll_init(struct gwhf_worker *wrk);
 void gwhf_ev_epoll_destroy(struct gwhf_worker *wrk);
 int gwhf_ev_epoll_run(struct gwhf_worker *wrk);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef GWHF__EV__EPOLL_H */

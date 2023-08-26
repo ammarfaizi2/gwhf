@@ -23,7 +23,7 @@ char *gwhf_strdup(const char *s);
 int gwhf_vasprintf(char **strp, const char *fmt, va_list ap);
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C" */
 #endif
 
 #endif /* #ifndef FRAMEWORK__GWHF__HELPERS_H */

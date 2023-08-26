@@ -18,7 +18,7 @@ void gwhf_stream_destroy_all(struct gwhf_client *cl);
 void gwhf_stream_destroy(struct gwhf_client_stream *str);
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C" */
 #endif
 
 #endif /* #ifndef FRAMEWORK__GWHF__STREAM_H */

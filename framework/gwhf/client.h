@@ -31,7 +31,7 @@ void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len);
 bool gwhf_client_has_send_buf(struct gwhf_client *cl);
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C" */
 #endif
 
 #endif /* #ifndef GWHF__CLIENT_H */

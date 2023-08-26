@@ -55,4 +55,18 @@ GWHF_EXPORT int gwhf_run(struct gwhf *ctx);
 GWHF_EXPORT void gwhf_destroy(struct gwhf *ctx);
 GWHF_EXPORT const char *gwhf_strerror(int err);
 
+typedef int (*gwhf_route_cb)(struct gwhf *ctx, struct gwhf_client *cl, void *arg);
+typedef int (*gwhf_route_init_cb)(void *arg);
+typedef int (*gwhf_route_free_cb)(void *arg);
+
+GWHF_EXPORT int gwhf_route_add_on_body(struct gwhf *ctx, gwhf_route_cb cb,
+				       gwhf_route_init_cb init_cb,
+				       gwhf_route_free_cb free_cb,
+				       void *arg);
+
+GWHF_EXPORT int gwhf_route_add_on_header(struct gwhf *ctx, gwhf_route_cb cb,
+					 gwhf_route_init_cb init_cb,
+					 gwhf_route_free_cb free_cb,
+					 void *arg);
+
 #endif /* #ifndef FRAMEWORK__GWHF__INCLUDE__GWHF__GWHF_H */

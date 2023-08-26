@@ -41,11 +41,22 @@ struct gwhf_worker {
 	mutex_t				mutex;
 };
 
+struct gwhf_route {
+	gwhf_route_cb		cb;
+	gwhf_route_init_cb	init_cb;
+	gwhf_route_free_cb	free_cb;
+	void			*arg;
+};
+
 struct gwhf_internal {
 	struct gwhf_sock	tcp;
 	uint32_t		nr_workers;
 	struct gwhf_worker	*workers;
 
+	struct gwhf_route	*routes_on_header;
+	struct gwhf_route	*routes_on_body;
+	uint16_t		nr_rt_on_header;
+	uint16_t		nr_rt_on_body;
 
 #if defined(__linux__)
 	struct sigaction	old_act[3];
@@ -53,7 +64,7 @@ struct gwhf_internal {
 };
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C" */
 #endif
 
 #endif /* #ifndef FRAMEWORK__GWHF__INTERNAL_H */

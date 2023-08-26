@@ -88,6 +88,7 @@ C_SRCS_FRAMEWORK := \
 	framework/gwhf/helpers.c \
 	framework/gwhf/os/$(GWHF_OS)/socket.c \
 	framework/gwhf/client.c \
+	framework/gwhf/route.c \
 	framework/gwhf/stack16.c \
 	framework/gwhf/stream.c \
 	framework/gwhf/thread.c
