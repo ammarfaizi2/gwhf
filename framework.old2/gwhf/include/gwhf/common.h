@@ -49,7 +49,7 @@ static inline intptr_t GWHF_PTR_ERR(const void *ptr)
 
 static inline bool GWHF_IS_ERR(const void *ptr)
 {
-	return (uintptr_t)ptr > (uintptr_t)-4096ul;
+	return __builtin_expect((uintptr_t)ptr > (uintptr_t)-4096ul, 0);
 }
 
 #ifdef __cplusplus

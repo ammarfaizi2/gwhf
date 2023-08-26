@@ -32,9 +32,6 @@ struct gwhf_worker {
 	thread_t			thread;
 	uint32_t			id;
 	struct gwhf_client_slot		client_slot;
-	bool				is_online;
-	cond_t				cond;
-	mutex_t				mutex;
 };
 
 struct gwhf_internal {

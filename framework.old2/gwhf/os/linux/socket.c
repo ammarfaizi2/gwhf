@@ -29,8 +29,10 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 		return fd;
 
 	val = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEADDR, &val,
+		    sizeof(val));
+	do_syscall5(__NR_setsockopt, fd, SOL_SOCKET, SO_REUSEPORT, &val,
+		    sizeof(val));
 
 	sk->fd = fd;
 	return 0;

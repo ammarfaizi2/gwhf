@@ -13,10 +13,10 @@ struct gwhf_client_slot {
 	struct gwhf_stack16	stack;
 };
 
-int gwhf_client_init_slot(struct gwhf_client_slot *cs, uint32_t max_clients);
-void gwhf_client_destroy_slot(struct gwhf_client_slot *cs);
-struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *cs);
-void gwhf_client_put(struct gwhf_client_slot *cs, struct gwhf_client *cl);
+int gwhf_client_init_slot(struct gwhf_client_slot *gwhf, uint32_t max_clients);
+void gwhf_client_destroy_slot(struct gwhf_client_slot *gwhf);
+struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *gwhf);
+void gwhf_client_put(struct gwhf_client_slot *gwhf, struct gwhf_client *cl);
 
 int gwhf_client_get_recv_buf(struct gwhf_client *cl, void **buf, size_t *len);
 void gwhf_client_advance_recv_buf(struct gwhf_client *cl, size_t len);

@@ -9,6 +9,24 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+__cold
+int gwhf_global_init(void)
+{
+	return gwhf_sock_global_init();
+}
+
+__cold
+void gwhf_global_destroy(void)
+{
+	gwhf_sock_global_destroy();
+}
+
+__cold
+int gwhf_init(struct gwhf *ctx)
+{
+	return gwhf_init_arg(ctx, NULL);
+}
+
 static int validate_and_adjust_arg(struct gwhf_init_arg *arg)
 {
 	int ret;
@@ -85,157 +103,112 @@ static void destroy_socket(struct gwhf *ctx)
 	gwhf_sock_close(&ctx->internal->tcp);
 }
 
-static int run_ev(struct gwhf_worker *wrk)
-{
-	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
-
-	switch (arg->ev_type) {
-	case GWHF_EV_EPOLL:
-		return gwhf_ev_epoll_run(wrk);
-	default:
-		return -EINVAL;
-	}
-}
-
-static void *run_worker(void *arg)
-{
-	struct gwhf_worker *wrk = arg;
-	return GWHF_ERR_PTR(run_ev(wrk));
-}
-
 static int init_ev(struct gwhf_worker *wrk)
 {
 	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
 
-	switch (arg->ev_type) {
-	case GWHF_EV_EPOLL:
-		return gwhf_ev_epoll_init(wrk);
-	default:
-		return -EINVAL;
-	}
+	if (arg->ev_type == GWHF_EV_EPOLL)
+		return gwhf_ev_epoll_init_worker(wrk);
+
+	return -EINVAL;
 }
 
 static void destroy_ev(struct gwhf_worker *wrk)
 {
 	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
 
-	wrk->ctx->stop = true;
-
-	switch (arg->ev_type) {
-	case GWHF_EV_EPOLL:
-		gwhf_ev_epoll_destroy(wrk);
-		break;
-	default:
-		break;
-	}
+	if (arg->ev_type == GWHF_EV_EPOLL)
+		gwhf_ev_epoll_destroy_worker(wrk);
 }
 
-static int init_worker(struct gwhf_worker *wrk)
+static int run_ev(struct gwhf_worker *wrk)
 {
-	uint32_t max_clients = wrk->ctx->init_arg.max_clients;
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
+
+	if (arg->ev_type == GWHF_EV_EPOLL)
+		return gwhf_ev_epoll_run_worker(wrk);
+
+	return -EINVAL;
+}
+
+static int __run_worker(struct gwhf_worker *wrk)
+{
+	return run_ev(wrk);
+}
+
+static void *run_worker(void *thread_arg)
+{
+	struct gwhf_worker *wrk = thread_arg;
+	struct gwhf_init_arg *arg = &wrk->ctx->init_arg;
 	int ret;
 
-	ret = mutex_init(&wrk->mutex);
+	ret = gwhf_client_init_slot(&wrk->client_slot, arg->max_clients);
 	if (ret)
-		return ret;
-
-	ret = cond_init(&wrk->cond);
-	if (ret)
-		goto out_mutex;
-
-	ret = gwhf_client_init_slot(&wrk->client_slot, max_clients);
-	if (ret)
-		goto out_cond;
+		goto out;
 
 	ret = init_ev(wrk);
 	if (ret)
-		goto out_client;
+		goto out_client_slot;
 
-	/*
-	 * Don't create a subthread for the main worker.
-	 */
-	if (wrk->id == 0)
-		return 0;
+	ret = __run_worker(wrk);
 
-	ret = thread_create(&wrk->thread, &run_worker, wrk);
-	if (ret)
-		goto out_ev;
-
-	return 0;
-
-out_ev:
-	destroy_ev(wrk);
-out_client:
+out_client_slot:
 	gwhf_client_destroy_slot(&wrk->client_slot);
-out_cond:
-	cond_destroy(&wrk->cond);
-out_mutex:
-	mutex_destroy(&wrk->mutex);
-	return ret;	
+out:
+	wrk->ctx->stop = true;
+	return GWHF_ERR_PTR(ret);
 }
 
-static void destroy_worker(struct gwhf_worker *wrk)
+static int spawn_worker(struct gwhf_worker *wrk)
 {
+	return thread_create(&wrk->thread, &run_worker, wrk);
+}
+
+static void stop_worker(struct gwhf_worker *wrk)
+{
+	wrk->ctx->stop = true;
 	destroy_ev(wrk);
-	gwhf_client_destroy_slot(&wrk->client_slot);
-	cond_destroy(&wrk->cond);
-	mutex_destroy(&wrk->mutex);
-
-	/*
-	 * Don't join the main worker thread. It doesn't have a subthread.
-	 */
-	if (wrk->id == 0)
-		return;
-
 	thread_join(wrk->thread, NULL);
 }
 
 static int init_workers(struct gwhf *ctx)
 {
-	uint32_t nr_workers = ctx->init_arg.nr_workers;
+	struct gwhf_init_arg *arg = &ctx->init_arg;
+	struct gwhf_internal *ctxi = ctx->internal;
 	struct gwhf_worker *workers;
 	uint32_t i;
 	int ret;
 
-	workers = calloc(nr_workers, sizeof(*workers));
+	if (!arg->nr_workers)
+		arg->nr_workers = 2;
+
+	workers = calloc(arg->nr_workers, sizeof(*workers));
 	if (!workers)
 		return -ENOMEM;
 
-	ctx->internal->workers = workers;
-	for (i = 0; i < nr_workers; i++) {
-		workers[i].id = i;
+	for (i = 0; i < arg->nr_workers; i++) {
 		workers[i].ctx = ctx;
-		ret = init_worker(&workers[i]);
+		workers[i].id = i;
+
+		if (i == 0)
+			continue;
+
+		ret = spawn_worker(&workers[i]);
 		if (ret)
 			goto out_err;
 	}
 
+	ctxi->workers = workers;
+	ctxi->nr_workers = arg->nr_workers;
 	return 0;
 
-
 out_err:
+	ctx->stop = true;
 	while (i--)
-		destroy_worker(&workers[i]);
+		stop_worker(&workers[i]);
 
 	free(workers);
-	ctx->internal->workers = NULL;
 	return ret;
-}
-
-static void destroy_workers(struct gwhf *ctx)
-{
-	struct gwhf_worker *workers = ctx->internal->workers;
-	uint32_t nr_workers = ctx->init_arg.nr_workers;
-	uint32_t i;
-
-	if (!workers)
-		return;
-
-	for (i = 0; i < nr_workers; i++)
-		destroy_worker(&workers[i]);
-
-	free(workers);
-	ctx->internal->workers = NULL;
 }
 
 static int init_internal_state(struct gwhf *ctx)
@@ -268,44 +241,24 @@ out_socket:
 out_signal:
 	gwhf_signal_revert_sig_handler(ctx);
 out_ctxi:
-	ctx->internal = NULL;
 	free(ctxi);
+	ctx->internal = NULL;
 	return ret;
 }
 
 static void destroy_internal_state(struct gwhf *ctx)
 {
-	struct gwhf_internal *ctxi;
+	struct gwhf_internal *ctxi = ctx->internal;
+	uint32_t i;
 
-	if (!ctx)
-		return;
+	ctx->stop = true;
+	for (i = 0; i < ctxi->nr_workers; i++)
+		stop_worker(&ctxi->workers[i]);
 
-	ctxi = ctx->internal;
-	if (!ctxi)
-		return;
-
-	destroy_workers(ctx);
+	gwhf_signal_revert_sig_handler(ctx);
 	destroy_socket(ctx);
+	free(ctxi->workers);
 	free(ctxi);
-	memset(ctx, 0, sizeof(*ctx));
-}
-
-__cold
-int gwhf_global_init(void)
-{
-	return gwhf_sock_global_init();
-}
-
-__cold
-void gwhf_global_destroy(void)
-{
-	gwhf_sock_global_destroy();
-}
-
-__cold
-int gwhf_init(struct gwhf *ctx)
-{
-	return gwhf_init_arg(ctx, NULL);
 }
 
 __cold noinline
