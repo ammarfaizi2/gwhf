@@ -484,9 +484,6 @@ static int do_send(struct gwhf_client *cl)
 	if (unlikely(ret < 0))
 		return ret;
 
-	if (!len)
-		return -EAGAIN;
-
 	ret = gwhf_sock_send(&cl->fd, buf, len, 0);
 	if (unlikely(ret < 0))
 		return ret;
@@ -513,7 +510,32 @@ static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 	if (ret == -EAGAIN)
 		ret = 0;
 
+	if (!ret && gwhf_client_has_send_buf(cl)) {
+		struct epoll_event *ev = cl->data;
+		ev->events |= EPOLLOUT;
+	}
+
 	return ret;
+}
+
+static int toggle_pollout(struct gwhf_worker *wrk, struct gwhf_client *cl,
+			  bool set)
+{
+	union epoll_data data;
+	uint32_t events;
+	int ret;
+
+	if (set == cl->pollout_set)
+		return 0;
+
+	data.ptr = cl;
+	events = EPOLLIN | (set ? EPOLLOUT : 0);
+	ret = epoll_mod(wrk->ev.ep_fd, &cl->fd, events, data);
+	if (ret < 0)
+		return ret;
+
+	cl->pollout_set = set;
+	return 0;
 }
 
 static int handle_client_send(struct gwhf_worker *wrk, struct gwhf_client *cl)
@@ -531,8 +553,13 @@ static int handle_client_send(struct gwhf_worker *wrk, struct gwhf_client *cl)
 			break;
 	}
 
-	if (ret == -EAGAIN)
+	if (ret == -EAGAIN) {
 		ret = 0;
+		toggle_pollout(wrk, cl, true);
+	} else if (ret == -ENOBUFS) {
+		ret = 0;
+		toggle_pollout(wrk, cl, false);
+	}
 
 	return ret;
 }

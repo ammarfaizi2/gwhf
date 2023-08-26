@@ -341,3 +341,9 @@ __hot
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len)
 {
 }
+
+__hot
+bool gwhf_client_has_send_buf(struct gwhf_client *cl)
+{
+	return (cl->send_buf.len > 0);
+}

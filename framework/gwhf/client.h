@@ -28,6 +28,7 @@ int gwhf_client_consume_recv_buf(struct gwhf_client *cl);
 
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len);
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len);
+bool gwhf_client_has_send_buf(struct gwhf_client *cl);
 
 #ifdef __cplusplus
 } // extern "C"
