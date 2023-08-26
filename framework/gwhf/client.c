@@ -343,11 +343,40 @@ int gwhf_client_consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	return consume_recv_buf(ctx, cl);
 }
 
+static int handle_keep_alive(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+
+	if (gwhf_client_should_be_kept_alive(cl)) {
+		int ret;
+
+		gwhf_stream_destroy(str);
+		ret = gwhf_stream_init(str);
+		if (ret < 0) {
+			str->state = TCL_CLOSE;
+			return ret;
+		}
+
+		str->state = TCL_IDLE;
+		return 0;
+	}
+
+	str->state = TCL_CLOSE;
+	return -ECONNRESET;
+}
+
 __hot
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len)
 {
-	if (!cl->send_buf.len)
+	int ret;
+
+	if (!cl->send_buf.len) {
+		ret = handle_keep_alive(cl);
+		if (ret < 0)
+			return ret;
+
 		return -ENOBUFS;
+	}
 
 	*buf = cl->send_buf.buf;
 	*len = (size_t)cl->send_buf.len;
@@ -375,4 +404,30 @@ __hot
 bool gwhf_client_has_send_buf(struct gwhf_client *cl)
 {
 	return (cl->send_buf.len > 0);
+}
+
+bool gwhf_client_should_be_kept_alive(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	const char *tmp;
+
+	tmp = gwhf_http_req_get_hdr(&str->req, "connection");
+	if (tmp && !gwhf_strcmpi(tmp, "keep-alive"))
+		return true;
+
+	tmp = gwhf_http_req_get_version(&str->req);
+	if (!strcmp(tmp, "HTTP/1.1"))
+		return true;
+
+	return false;
+}
+
+bool gwhf_client_need_keep_alive_hdr(struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+
+	if (!gwhf_http_res_get_hdr(&str->res, "connection"))
+		return false;
+
+	return gwhf_client_should_be_kept_alive(cl);
 }

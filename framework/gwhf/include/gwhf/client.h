@@ -189,6 +189,8 @@ enum {
 
 	TCL_SEND_HEADER   = 6,
 	TCL_SEND_BODY     = 7,
+
+	TCL_CLOSE         = 8,
 };
 
 struct gwhf_client_stream {

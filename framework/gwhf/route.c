@@ -162,6 +162,12 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	char *buf;
 	int ret;
 
+	if (gwhf_client_need_keep_alive_hdr(cl)) {
+		ret = gwhf_http_res_add_hdr(res, "Connection", "keep-alive");
+		if (ret)
+			return ret;
+	}
+
 	ret = gwhf_http_res_construct_first_res(res, &buf, &len);
 	if (ret)
 		return ret;

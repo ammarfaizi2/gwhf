@@ -306,6 +306,18 @@ static int parse_http_header_fields(char **next, struct gwhf_http_req_hdr *hdr)
 		 * Save the value offset.
 		 */
 		tmp->off_val = (uint32_t)(head - hdr->buf);
+		nr_fields++;
+
+		/*
+		 * Trim the value from the right.
+		 */
+		p = trim_spaces_backward(tail - 1);
+		if (p == tail - 1) {
+			/*
+			 * If p == tail - 1, then the EOL is an LF.
+			 */
+			*tail = '\0';
+		}
 
 		/*
 		 * TODO(ammarfaizi2): Rewrite this mess.
@@ -330,19 +342,6 @@ static int parse_http_header_fields(char **next, struct gwhf_http_req_hdr *hdr)
 				else
 					conlen = GWHF_CONLEN_INVALID;
 			}
-		}
-
-		nr_fields++;
-
-		/*
-		 * Trim the value from the right.
-		 */
-		p = trim_spaces_backward(tail - 1);
-		if (p == tail - 1) {
-			/*
-			 * If p == tail - 1, then the EOL is an LF.
-			 */
-			*tail = '\0';
 		}
 
 		/*

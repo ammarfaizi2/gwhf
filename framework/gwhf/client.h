@@ -29,6 +29,8 @@ int gwhf_client_consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl);
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len);
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len);
 bool gwhf_client_has_send_buf(struct gwhf_client *cl);
+bool gwhf_client_should_be_kept_alive(struct gwhf_client *cl);
+bool gwhf_client_need_keep_alive_hdr(struct gwhf_client *cl);
 
 #ifdef __cplusplus
 } /* extern "C" */

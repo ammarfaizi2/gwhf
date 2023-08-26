@@ -449,31 +449,6 @@ static int handle_event_fd(struct gwhf_worker *wrk)
 	return consume_event_fd(&wrk->ev.ev_fd);
 }
 
-static int do_recv(struct gwhf *ctx, struct gwhf_client *cl)
-{
-	size_t len;
-	void *buf;
-	int ret;
-
-	ret = gwhf_client_get_recv_buf(cl, &buf, &len);
-	if (unlikely(ret < 0))
-		return ret;
-
-	ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
-	if (unlikely(ret < 0))
-		return ret;
-
-	if (!ret)
-		return -ECONNRESET;
-
-	gwhf_client_advance_recv_buf(cl, (size_t)ret);
-	ret = gwhf_client_consume_recv_buf(ctx, cl);
-	if (unlikely(ret < 0))
-		return ret;
-
-	return 0;
-}
-
 static int do_send(struct gwhf_client *cl)
 {
 	const void *buf;
@@ -494,19 +469,32 @@ static int do_send(struct gwhf_client *cl)
 
 static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 {
-	static const uint32_t max_try = 16;
-	uint32_t i = 0;
-	int ret = 0;
+	int ret;
 
-	while (i++ < max_try) {
-		ret = do_recv(wrk->ctx, cl);
-		if (ret == -EINTR)
-			continue;
+	while (1) {
+		size_t len;
+		void *buf;
 
-		if (ret)
+		ret = gwhf_client_get_recv_buf(cl, &buf, &len);
+		if (unlikely(ret < 0))
+			break;
+
+		ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
+		if (unlikely(ret < 0))
+			break;
+
+		if (!ret) {
+			ret = -ECONNRESET;
+			break;
+		}
+
+		gwhf_client_advance_recv_buf(cl, (size_t)ret);
+		ret = gwhf_client_consume_recv_buf(wrk->ctx, cl);
+		if (ret != -EAGAIN)
 			break;
 	}
 
+	printf("ret recv = %d\n", ret);
 	if (ret == -EAGAIN)
 		ret = 0;
 
