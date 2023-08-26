@@ -178,6 +178,7 @@ static void reset_client(struct gwhf_client *cl)
 	gwhf_sock_close(&cl->fd);
 	gwhf_client_destroy_raw_buf(&cl->send_buf);
 	gwhf_client_destroy_raw_buf(&cl->recv_buf);
+	gwhf_stream_destroy_all(cl);
 }
 
 __cold
