@@ -377,5 +377,5 @@ int gwhf_vasprintf(char **strp, const char *fmt, va_list ap)
 	va_end(ap3);
 
 	*strp = str;
-	return 0;
+	return (int)len;
 }

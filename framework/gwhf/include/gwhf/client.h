@@ -177,16 +177,18 @@ struct gwhf_client_stream_buf {
 };
 
 enum {
-	TCL_IDLE         = 0,
+	TCL_IDLE          = 0,
 
-	TCL_RECV_HEADER  = 1,
-	TCL_ROUTE_HEADER = 2,
+	TCL_TLS_HANDSHAKE = 1,
 
-	TCL_RECV_BODY    = 3,
-	TCL_ROUTE_BODY   = 4,
+	TCL_RECV_HEADER   = 2,
+	TCL_ROUTE_HEADER  = 3,
 
-	TCL_SEND_HEADER  = 5,
-	TCL_SEND_BODY    = 6,
+	TCL_RECV_BODY     = 4,
+	TCL_ROUTE_BODY    = 5,
+
+	TCL_SEND_HEADER   = 6,
+	TCL_SEND_BODY     = 7,
 };
 
 struct gwhf_client_stream {

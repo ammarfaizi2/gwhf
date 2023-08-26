@@ -1,16 +1,43 @@
 
 #include <gwhf/gwhf.h>
+#include <string.h>
 #include <stdio.h>
 
 static int handle_req_on_hdr(struct gwhf *ctx, struct gwhf_client *cl, void *arg)
 {
-	printf("handle_req_on_hdr()\n");
 	return 0;
+}
+
+static int handle_index(struct gwhf *ctx, struct gwhf_client *cl, void *arg)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	const char *uri = gwhf_http_req_get_uri(&str->req);
+	int ret;
+
+	if (strcmp(uri, "/"))
+		return GWHF_ROUTE_CONTINUE;
+
+	ret = gwhf_http_res_set_body_buf_ref(&str->res, "Hello, world!\n", 14);
+	if (ret)
+		return GWHF_ROUTE_ERROR;
+
+	ret |= gwhf_http_res_set_status_code(&str->res, 200);
+	ret |= gwhf_http_res_add_hdr(&str->res, "Content-Type", "text/plain");
+	ret |= gwhf_http_res_add_hdr(&str->res, "Content-Length", "%d", 14);
+	if (ret)
+		return GWHF_ROUTE_ERROR;
+
+	return GWHF_ROUTE_EXECUTED;
 }
 
 static int handle_req_on_body(struct gwhf *ctx, struct gwhf_client *cl, void *arg)
 {
-	printf("handle_req_on_body()\n");
+	int ret;
+
+	ret = handle_index(ctx, cl, arg);
+	if (ret != GWHF_ROUTE_CONTINUE)
+		return ret;
+
 	return 0;
 }
 

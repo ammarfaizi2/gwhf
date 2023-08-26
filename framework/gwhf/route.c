@@ -5,6 +5,8 @@
 
 #include "./internal.h"
 
+#include <stdio.h>
+
 static int route_init_on_body(struct gwhf *ctx)
 {
 	struct gwhf_internal *ctxi = ctx->internal;
@@ -124,6 +126,7 @@ int gwhf_route_add_on_body(struct gwhf *ctx, gwhf_route_cb cb,
 	rob[new_nr - 1].init_cb = init_cb;
 	rob[new_nr - 1].free_cb = free_cb;
 	rob[new_nr - 1].arg = arg;
+	ctxi->routes_on_body = rob;
 	ctxi->nr_rt_on_body = new_nr;
 	return 0;
 }
@@ -146,8 +149,38 @@ int gwhf_route_add_on_header(struct gwhf *ctx, gwhf_route_cb cb,
 	roh[new_nr - 1].init_cb = init_cb;
 	roh[new_nr - 1].free_cb = free_cb;
 	roh[new_nr - 1].arg = arg;
+	ctxi->routes_on_header = roh;
 	ctxi->nr_rt_on_header = new_nr;
 	return 0;
+}
+
+static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_http_res *res = &str->res;
+	size_t len;
+	char *buf;
+	int ret;
+
+	ret = gwhf_http_res_construct_first_res(res, &buf, &len);
+	if (ret)
+		return ret;
+
+	str->state = TCL_SEND_HEADER;
+	cl->send_buf.buf = buf;
+	cl->send_buf.len = len;
+	cl->send_buf.alloc = len;
+	return 0;
+}
+
+static int handle_route(struct gwhf *ctx, struct gwhf_client *cl, int ret)
+{
+	switch (ret) {
+	case GWHF_ROUTE_EXECUTED:
+		return handle_route_executed(ctx, cl);
+	}
+
+	return ret;
 }
 
 __hot
@@ -163,7 +196,7 @@ int gwhf_route_exec_on_header(struct gwhf *ctx, struct gwhf_client *cl)
 	for (i = 0; i < ctxi->nr_rt_on_header; i++) {
 		int ret = roh[i].cb(ctx, cl, roh[i].arg);
 		if (ret != GWHF_ROUTE_CONTINUE)
-			break;
+			return handle_route(ctx, cl, ret);
 	}
 
 	return GWHF_ROUTE_CONTINUE;
@@ -182,7 +215,7 @@ int gwhf_route_exec_on_body(struct gwhf *ctx, struct gwhf_client *cl)
 	for (i = 0; i < ctxi->nr_rt_on_body; i++) {
 		int ret = rob[i].cb(ctx, cl, rob[i].arg);
 		if (ret != GWHF_ROUTE_CONTINUE)
-			break;
+			return handle_route(ctx, cl, ret);
 	}
 
 	return GWHF_ROUTE_CONTINUE;
