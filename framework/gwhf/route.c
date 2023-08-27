@@ -162,11 +162,13 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	char *buf;
 	int ret;
 
-	if (gwhf_client_need_keep_alive_hdr(cl)) {
+	if (gwhf_client_need_keep_alive_hdr(cl))
 		ret = gwhf_http_res_add_hdr(res, "Connection", "keep-alive");
-		if (ret)
-			return ret;
-	}
+	else
+		ret = gwhf_http_res_add_hdr(res, "Connection", "close");
+
+	if (ret)
+		return ret;
 
 	ret = gwhf_http_res_construct_first_res(res, &buf, &len);
 	if (ret)
@@ -187,6 +189,31 @@ static int handle_route(struct gwhf *ctx, struct gwhf_client *cl, int ret)
 	}
 
 	return ret;
+}
+
+static int route_404_not_found(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_http_res *res = &str->res;
+	int ret;
+
+	ret = gwhf_http_res_set_status_code(res, 404);
+	if (ret)
+		return ret;
+
+	ret = gwhf_http_res_set_body_buf_ref(res, "404 Not Found\n", 14);
+	if (ret)
+		return ret;
+
+	ret = gwhf_http_res_add_hdr(res, "Content-Type", "text/plain");
+	if (ret)
+		return ret;
+
+	ret = gwhf_http_res_add_hdr(res, "Content-Length", "%d", 14);
+	if (ret)
+		return ret;
+
+	return handle_route_executed(ctx, cl);
 }
 
 __hot
@@ -224,5 +251,5 @@ int gwhf_route_exec_on_body(struct gwhf *ctx, struct gwhf_client *cl)
 			return handle_route(ctx, cl, ret);
 	}
 
-	return GWHF_ROUTE_CONTINUE;
+	return route_404_not_found(ctx, cl);
 }

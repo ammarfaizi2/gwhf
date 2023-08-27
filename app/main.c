@@ -80,6 +80,7 @@ static int register_routes(struct gwhf *ctx)
 
 int main(void)
 {
+	struct gwhf_init_arg init;
 	struct gwhf ctx;
 	int ret;
 
@@ -89,7 +90,9 @@ int main(void)
 		return 1;
 	}
 
-	ret = gwhf_init(&ctx);
+	init.bind_addr = "::";
+	init.bind_port = 7443;
+	ret = gwhf_init_arg(&ctx, &init);
 	if (ret != 0) {
 		gwhf_global_destroy();
 		fprintf(stderr, "gwhf_init(): %s\n", gwhf_strerror(ret));
@@ -106,7 +109,6 @@ int main(void)
 
 	printf("Starting...\n");
 	ret = gwhf_run(&ctx);
-	printf("ret = %d\n", ret);
 	gwhf_destroy(&ctx);
 	gwhf_global_destroy();
 	printf("Exiting...\n");

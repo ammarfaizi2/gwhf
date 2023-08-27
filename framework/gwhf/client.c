@@ -413,8 +413,8 @@ bool gwhf_client_should_be_kept_alive(struct gwhf_client *cl)
 	const char *tmp;
 
 	tmp = gwhf_http_req_get_hdr(&str->req, "connection");
-	if (tmp && !gwhf_strcmpi(tmp, "keep-alive"))
-		return true;
+	if (tmp)
+		return !gwhf_strcmpi(tmp, "keep-alive");
 
 	tmp = gwhf_http_req_get_version(&str->req);
 	if (!strcmp(tmp, "HTTP/1.1"))
