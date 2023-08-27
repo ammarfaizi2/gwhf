@@ -4,40 +4,20 @@
  */
 
 #include "./stream.h"
+#include "./buf.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-static int init_stream_buf(struct gwhf_client_stream_buf *csb)
-{
-	csb->buf = malloc(4096);
-	if (!csb->buf)
-		return -ENOMEM;
-
-	csb->alloc = 4096;
-	csb->len = 0;
-	return 0;
-}
-
-static void destroy_stream_buf(struct gwhf_client_stream_buf *csb)
-{
-	if (!csb->buf)
-		return;
-
-	free(csb->buf);
-	csb->buf = NULL;
-	memset(csb, 0, sizeof(*csb));
-}
 
 int gwhf_stream_init(struct gwhf_client_stream *str)
 {
 	int ret;
 
-	ret = init_stream_buf(&str->req_buf);
+	ret = gwhf_buf_init(&str->req_buf);
 	if (ret)
 		return ret;
 
-	ret = init_stream_buf(&str->res_buf);
+	ret = gwhf_buf_init(&str->res_buf);
 	if (ret)
 		goto out_req_buf;
 
@@ -56,9 +36,9 @@ int gwhf_stream_init(struct gwhf_client_stream *str)
 out_req:
 	gwhf_http_req_destroy(&str->req);
 out_res_buf:
-	destroy_stream_buf(&str->res_buf);
+	gwhf_buf_destroy(&str->res_buf);
 out_req_buf:
-	destroy_stream_buf(&str->req_buf);
+	gwhf_buf_destroy(&str->req_buf);
 	return ret;
 }
 
@@ -108,8 +88,8 @@ void gwhf_stream_destroy_all(struct gwhf_client *cl)
 
 void gwhf_stream_destroy(struct gwhf_client_stream *str)
 {
-	destroy_stream_buf(&str->req_buf);
-	destroy_stream_buf(&str->res_buf);
+	gwhf_buf_destroy(&str->req_buf);
+	gwhf_buf_destroy(&str->res_buf);
 	gwhf_http_req_destroy(&str->req);
 	gwhf_http_res_destroy(&str->res);
 }

@@ -174,10 +174,12 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	if (ret)
 		return ret;
 
+	ret = gwhf_buf_append(&cl->raw_send_buf, buf, len);
+	free(buf);
+	if (ret)
+		return ret;
+
 	str->state = TCL_SEND_HEADER;
-	cl->send_buf.buf = buf;
-	cl->send_buf.len = len;
-	cl->send_buf.alloc = len;
 	return 0;
 }
 

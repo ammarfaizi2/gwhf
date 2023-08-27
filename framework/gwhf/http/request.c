@@ -369,8 +369,8 @@ out_err:
 	return -EINVAL;
 }
 
-int gwhf_http_req_parse_header(struct gwhf_http_req_hdr *hdr, const char *buf,
-			       size_t buf_len)
+static int parse_header(struct gwhf_http_req_hdr *hdr, const char *buf,
+			size_t buf_len)
 {
 	uint32_t len;
 	char *dcrlf;
@@ -421,4 +421,21 @@ out_err:
 	hdr->buf = NULL;
 	hdr->len = 0;
 	return ret;
+}
+
+int gwhf_http_req_parse_header(struct gwhf_http_req_hdr *hdr,
+			       struct gwhf_buf *buf)
+{
+	uint32_t len;
+	int ret;
+
+	len = gwhf_buf_get_free_space(buf);
+	if (unlikely(len < 1)) {
+		ret = gwhf_buf_add_alloc(buf, 1);
+		if (unlikely(ret))
+			return ret;
+	}
+
+	buf->buf[buf->len] = '\0';
+	return parse_header(hdr, buf->buf, buf->len + 1);
 }

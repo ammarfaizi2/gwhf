@@ -8,6 +8,7 @@
 #include <gwhf/gwhf.h>
 
 #include "./attr.h"
+#include "./buf.h"
 #include "./thread.h"
 #include "./client.h"
 #include "./ev/epoll.h"

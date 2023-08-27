@@ -170,7 +170,7 @@ int gwhf_http_res_set_status_code(struct gwhf_http_res *res, int status_code)
 	return 0;
 }
 
-struct gwhf_client_stream_buf {
+struct gwhf_buf {
 	char		*buf;
 	uint32_t	len;
 	uint32_t	alloc;
@@ -197,12 +197,12 @@ struct gwhf_client_stream {
 	/*
 	 * Request buffer received from the client.
 	 */
-	struct gwhf_client_stream_buf	req_buf;
+	struct gwhf_buf			req_buf;
 
 	/*
 	 * Response buffer to be sent to the client.
 	 */
-	struct gwhf_client_stream_buf	res_buf;
+	struct gwhf_buf			res_buf;
 
 	/*
 	 * The number of bytes in |req_buf| that have
@@ -226,12 +226,6 @@ struct gwhf_client_stream {
 	uint8_t				state;
 };
 
-struct gwhf_raw_buf {
-	char		*buf;
-	uint32_t	len;
-	uint32_t	alloc;
-};
-
 struct gwhf_client {
 	/*
 	 * The socket file descriptor (TCP only).
@@ -246,8 +240,8 @@ struct gwhf_client {
 	/*
 	 * Raw buffer.
 	 */
-	struct gwhf_raw_buf		recv_buf;
-	struct gwhf_raw_buf		send_buf;
+	struct gwhf_buf			raw_recv_buf;
+	struct gwhf_buf			raw_send_buf;
 
 	/*
 	 * Internal data.
