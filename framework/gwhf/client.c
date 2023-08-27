@@ -184,55 +184,30 @@ static int extract_raw_no_ssl(struct gwhf_client *cl)
 }
 
 #ifdef CONFIG_HTTPS
-static int do_tls_handshake(struct gwhf *ctx, struct gwhf_client *cl)
+static int ssl_read_to_stream(struct gwhf_client *cl)
 {
-	struct gwhf_buf *rrb = &cl->raw_recv_buf;
-	struct gwhf_buf *rsb = &cl->raw_send_buf;
-	int ret, wr_ret;
+	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_buf *rb = &str->req_buf;
+	int ret;
 
-	if (!cl->ssl) {
-		ret = gwhf_ssl_init_client(ctx, cl);
-		if (ret < 0)
-			return ret;
+	ret = SSL_read(cl->ssl, rb->buf + rb->len, rb->alloc - rb->len - 1);
+	if (ret <= 0) {
+		ret = SSL_get_error(cl->ssl, ret);
+		switch (ret) {
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
+		case SSL_ERROR_WANT_X509_LOOKUP:
+		case SSL_ERROR_WANT_CONNECT:
+		case SSL_ERROR_WANT_RETRY_VERIFY:
+		case SSL_ERROR_WANT_ACCEPT:
+			return -EAGAIN;
+		default:
+			return -EIO;
+		}
 	}
 
-	ret = BIO_write(cl->rbio, rrb->buf, rrb->len);
-	if (ret <= 0)
-		return -EIO;
-
-	wr_ret = ret;
-	ret = SSL_do_handshake(cl->ssl);
-	if (ret == 1) {
-		gwhf_buf_advance(rrb, wr_ret);
-		cl->https_state = GWHF_CL_HTTPS_ON;
-		return 0;
-	}
-
-	ret = SSL_get_error(cl->ssl, ret);
-	switch (ret) {
-	case SSL_ERROR_WANT_READ:
-	case SSL_ERROR_WANT_WRITE:
-	case SSL_ERROR_WANT_X509_LOOKUP:
-	case SSL_ERROR_WANT_CONNECT:
-	case SSL_ERROR_WANT_RETRY_VERIFY:
-	case SSL_ERROR_WANT_ACCEPT:
-		gwhf_buf_advance(rrb, wr_ret);
-		break;
-	default:
-		gwhf_ssl_destroy_client(cl);
-		cl->https_state = GWHF_CL_HTTPS_OFF;
-		return extract_raw_no_ssl(cl);
-	}
-
-	ret = gwhf_buf_realloc_if_needed(rsb, 8192);
-	if (ret < 0)
-		return ret;
-
-	ret = BIO_read(cl->wbio, rsb->buf + rsb->len, rsb->alloc - rsb->len);
-	if (ret <= 0)
-		return -EIO;
-
-	rsb->len += ret;
+	rb->len += ret;
+	rb->buf[rb->len] = '\0';
 	return 0;
 }
 
@@ -256,13 +231,64 @@ static int extract_raw_ssl(struct gwhf_client *cl)
 	if (ret < 0)
 		return ret;
 
-	ret = SSL_read(cl->ssl, rb->buf + rb->len, rb->alloc - rb->len - 1);
+	return ssl_read_to_stream(cl);
+}
+
+static int do_tls_handshake(struct gwhf *ctx, struct gwhf_client *cl)
+{
+	struct gwhf_buf *rrb = &cl->raw_recv_buf;
+	struct gwhf_buf *rsb = &cl->raw_send_buf;
+	int ret, wr_ret;
+
+	if (!cl->ssl) {
+		ret = gwhf_ssl_init_client(ctx, cl);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = BIO_write(cl->rbio, rrb->buf, rrb->len);
 	if (ret <= 0)
 		return -EIO;
 
-	rb->len += ret;
-	rb->buf[rb->len] = '\0';
-	return 0;
+	wr_ret = ret;
+	ret = SSL_do_handshake(cl->ssl);
+	if (ret == 1) {
+		gwhf_buf_advance(rrb, wr_ret);
+		cl->https_state = GWHF_CL_HTTPS_ON;
+		goto out;
+	}
+
+	ret = SSL_get_error(cl->ssl, ret);
+	switch (ret) {
+	case SSL_ERROR_WANT_READ:
+	case SSL_ERROR_WANT_WRITE:
+	case SSL_ERROR_WANT_X509_LOOKUP:
+	case SSL_ERROR_WANT_CONNECT:
+	case SSL_ERROR_WANT_RETRY_VERIFY:
+	case SSL_ERROR_WANT_ACCEPT:
+		gwhf_buf_advance(rrb, wr_ret);
+		break;
+	default:
+		gwhf_ssl_destroy_client(cl);
+		cl->https_state = GWHF_CL_HTTPS_OFF;
+		return extract_raw_no_ssl(cl);
+	}
+
+out:
+	ret = gwhf_buf_realloc_if_needed(rsb, 8192);
+	if (ret < 0)
+		return ret;
+
+	ret = BIO_read(cl->wbio, rsb->buf + rsb->len, rsb->alloc - rsb->len);
+	if (ret <= 0)
+		return -EIO;
+
+	rsb->len += ret;
+
+	if (cl->https_state == GWHF_CL_HTTPS_ON)
+		return ssl_read_to_stream(cl);
+
+	return -EAGAIN;
 }
 
 static int extract_raw_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
@@ -299,6 +325,7 @@ int gwhf_client_consume_recv_buf(struct gwhf *ctx, struct gwhf_client *cl)
 	return gwhf_stream_consume_request(ctx, cl);
 }
 
+#if 0
 static int handle_keep_alive(struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str;
@@ -326,20 +353,15 @@ static int handle_keep_alive(struct gwhf_client *cl)
 	str->state = TCL_CLOSE;
 	return -ECONNRESET;
 }
+#endif
 
 __hot
 int gwhf_client_get_send_buf(struct gwhf_client *cl, const void **buf, size_t *len)
 {
 	int ret;
 
-	if (!cl->raw_send_buf.len) {
-
-		ret = handle_keep_alive(cl);
-		if (ret < 0)
-			return ret;
-
+	if (!cl->raw_send_buf.len)
 		return -ENOBUFS;
-	}
 
 	*buf = cl->raw_send_buf.buf;
 	*len = (size_t)cl->raw_send_buf.len;
@@ -359,7 +381,14 @@ void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len)
 		memmove(sb->buf, sb->buf + len, new_len);
 		sb->len = new_len;
 	} else {
+		struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+
 		sb->len = 0;
+		gwhf_stream_destroy(str);
+		if (gwhf_stream_init(str) < 0)
+			str->state = TCL_CLOSE;
+		else
+			str->state = TCL_IDLE;
 	}
 }
 
