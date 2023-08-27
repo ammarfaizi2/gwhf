@@ -17,6 +17,8 @@ int gwhf_stream_init(struct gwhf_client_stream *str);
 void gwhf_stream_destroy_all(struct gwhf_client *cl);
 void gwhf_stream_destroy(struct gwhf_client_stream *str);
 
+int gwhf_stream_consume_request(struct gwhf *ctx, struct gwhf_client *cl);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
