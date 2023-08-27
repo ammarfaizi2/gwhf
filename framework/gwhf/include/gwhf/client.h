@@ -42,11 +42,15 @@ struct gwhf_http_req_hdr {
 	uint16_t			nr_hdr_fields;
 };
 
+struct gwhf_buf {
+	char		*buf;
+	size_t		len;
+	size_t		alloc;
+};
+
 struct gwhf_http_req {
 	struct gwhf_http_req_hdr	hdr;
-	char				*body;
-	uint64_t			body_len;
-	uint64_t			body_alloc;
+	struct gwhf_buf			body;
 };
 
 static inline const char *gwhf_http_req_get_method(struct gwhf_http_req *req)
@@ -169,12 +173,6 @@ int gwhf_http_res_set_status_code(struct gwhf_http_res *res, int status_code)
 	res->hdr.status_code = status_code;
 	return 0;
 }
-
-struct gwhf_buf {
-	char		*buf;
-	uint32_t	len;
-	uint32_t	alloc;
-};
 
 enum {
 	TCL_IDLE          = 0,

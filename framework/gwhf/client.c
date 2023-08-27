@@ -219,7 +219,7 @@ struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *cs)
 	if (unlikely(ret))
 		goto out_put;
 
-	ret = gwhf_buf_init(&cl->raw_send_buf);
+	ret = gwhf_buf_init_len(&cl->raw_send_buf, 128);
 	if (unlikely(ret))
 		goto out_recv_buf;
 
@@ -340,7 +340,7 @@ __hot
 void gwhf_client_advance_send_buf(struct gwhf_client *cl, size_t len)
 {
 	struct gwhf_buf *sb = &cl->raw_send_buf;
-	uint32_t new_len;
+	size_t new_len;
 
 	new_len = sb->len - len;
 	assert(len <= cl->raw_send_buf.len);

@@ -14,7 +14,7 @@ int gwhf_buf_init(struct gwhf_buf *b)
 	return gwhf_buf_init_len(b, 4096);
 }
 
-int gwhf_buf_init_len(struct gwhf_buf *b, uint32_t len)
+int gwhf_buf_init_len(struct gwhf_buf *b, size_t len)
 {
 	char *buf;
 
@@ -28,9 +28,9 @@ int gwhf_buf_init_len(struct gwhf_buf *b, uint32_t len)
 	return 0;
 }
 
-int gwhf_buf_add_alloc(struct gwhf_buf *b, uint32_t add_n)
+int gwhf_buf_add_alloc(struct gwhf_buf *b, size_t add_n)
 {
-	uint32_t new_alloc;
+	size_t new_alloc;
 	char *new_buf;
 
 	new_alloc = b->alloc + add_n;
@@ -43,9 +43,9 @@ int gwhf_buf_add_alloc(struct gwhf_buf *b, uint32_t add_n)
 	return 0;
 }
 
-int gwhf_buf_sub_alloc(struct gwhf_buf *b, uint32_t sub_n)
+int gwhf_buf_sub_alloc(struct gwhf_buf *b, size_t sub_n)
 {
-	uint32_t new_alloc;
+	size_t new_alloc;
 	char *new_buf;
 
 	if (b->alloc < sub_n)
@@ -61,7 +61,7 @@ int gwhf_buf_sub_alloc(struct gwhf_buf *b, uint32_t sub_n)
 	return 0;
 }
 
-int gwhf_buf_append(struct gwhf_buf *b, const void *data, uint32_t len)
+int gwhf_buf_append(struct gwhf_buf *b, const void *data, size_t len)
 {
 	int ret;
 
@@ -86,9 +86,9 @@ void gwhf_buf_destroy(struct gwhf_buf *b)
 	memset(b, 0, sizeof(*b));
 }
 
-void gwhf_buf_advance(struct gwhf_buf *b, uint32_t len)
+void gwhf_buf_advance(struct gwhf_buf *b, size_t len)
 {
-	uint32_t move_len;
+	size_t move_len;
 
 	assert(b->len >= len);
 

@@ -12,14 +12,12 @@
 
 int gwhf_http_req_init(struct gwhf_http_req *req)
 {
-	memset(req, 0, sizeof(*req));
+	int ret;
 
-	req->body = malloc(4096);
-	if (!req->body)
-		return -ENOMEM;
+	ret = gwhf_buf_init(&req->body);
+	if (ret)
+		return ret;
 
-	req->body_alloc = 4096;
-	req->body_len = 0;
 	req->hdr.content_length = GWHF_CONLEN_UNSET;
 	return 0;
 }
@@ -32,47 +30,27 @@ void gwhf_http_req_destroy(struct gwhf_http_req *req)
 	if (req->hdr.hdr_fields)
 		free(req->hdr.hdr_fields);
 
-	if (req->body)
-		free(req->body);
-
+	gwhf_buf_destroy(&req->body);
 	memset(req, 0, sizeof(*req));
-}
-
-static int realloc_body_if_needed(struct gwhf_http_req *req, size_t add_len)
-{
-	size_t new_alloc;
-	size_t new_len;
-	char *new_body;
-
-	new_len = req->body_len + add_len + 1;
-	if (new_len <= req->body_alloc)
-		return 0;
-
-	new_alloc = new_len + 8192;
-	if (unlikely(new_alloc > UINT32_MAX))
-		return -ENOMEM;
-
-	new_body = realloc(req->body, new_alloc);
-	if (unlikely(!new_body))
-		return -ENOMEM;
-
-	req->body = new_body;
-	req->body_alloc = new_alloc;
-	return 0;
 }
 
 int gwhf_http_req_body_add(struct gwhf_http_req *req, const void *buf,
 			   size_t len)
 {
+	struct gwhf_buf *body = &req->body;
+	uint32_t new_len;
 	int ret;
 
-	ret = realloc_body_if_needed(req, len);
-	if (unlikely(ret < 0))
-		return ret;
+	new_len = body->len + len;
+	if (new_len + 1 > body->alloc) {
+		ret = gwhf_buf_add_alloc(body, new_len + 1);
+		if (ret)
+			return ret;
+	}
 
-	memcpy(req->body + req->body_len, buf, len);
-	req->body_len += len;
-	req->body[req->body_len] = '\0';
+	memcpy(&body->buf[body->len], buf, len);
+	body->len = new_len;
+	body->buf[body->len] = '\0';
 	return 0;
 }
 

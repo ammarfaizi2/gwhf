@@ -12,19 +12,19 @@ extern "C" {
 #endif
 
 int gwhf_buf_init(struct gwhf_buf *b);
-int gwhf_buf_init_len(struct gwhf_buf *b, uint32_t len);
-int gwhf_buf_add_alloc(struct gwhf_buf *b, uint32_t add_n);
-int gwhf_buf_sub_alloc(struct gwhf_buf *b, uint32_t sub_n);
-int gwhf_buf_append(struct gwhf_buf *b, const void *data, uint32_t len);
-void gwhf_buf_advance(struct gwhf_buf *b, uint32_t len);
+int gwhf_buf_init_len(struct gwhf_buf *b, size_t len);
+int gwhf_buf_add_alloc(struct gwhf_buf *b, size_t add_n);
+int gwhf_buf_sub_alloc(struct gwhf_buf *b, size_t sub_n);
+int gwhf_buf_append(struct gwhf_buf *b, const void *data, size_t len);
+void gwhf_buf_advance(struct gwhf_buf *b, size_t len);
 void gwhf_buf_destroy(struct gwhf_buf *b);
 
-static inline uint32_t gwhf_buf_get_free_space(struct gwhf_buf *b)
+static inline size_t gwhf_buf_get_free_space(struct gwhf_buf *b)
 {
 	return b->alloc - b->len;
 }
 
-static inline int gwhf_buf_realloc_if_needed(struct gwhf_buf *b, uint32_t need_n)
+static inline int gwhf_buf_realloc_if_needed(struct gwhf_buf *b, size_t need_n)
 {
 	if (b->alloc >= need_n)
 		return 0;

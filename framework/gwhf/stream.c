@@ -6,6 +6,7 @@
 #include "./stream.h"
 #include "./buf.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
