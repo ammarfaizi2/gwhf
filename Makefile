@@ -14,6 +14,7 @@ override CXXFLAGS += -Wall -Wextra -O2 -ggdb3 -I. -I./framework/gwhf/include
 override LDLIBS +=
 override LDFLAGS += -O2 -ggdb3
 
+CONFIG_HTTPS ?= y
 SANITIZE ?= 0
 LTO ?= 0
 
@@ -70,9 +71,9 @@ else
 		SPECFLAGS += -DGWHF_ARCH_ARM
 		GWHF_ARCH := arm
 	endif
-	LDLIBS += -lpthread
-	LDFLAGS += -fpic -fPIC
-	SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE -fpic -fPIC
+	override LDLIBS += -lpthread
+	override LDFLAGS += -fpic -fPIC
+	override SPECFLAGS += -DUSE_POSIX_THREAD -D_GNU_SOURCE -fpic -fPIC
 	LIBGWHF := libgwhf.so
 	TARGET := main
 endif
@@ -104,6 +105,13 @@ endif
 ifeq ($(GWHF_OS),linux)
 	C_SRCS_FRAMEWORK += \
 		framework/gwhf/os/linux/signal.c
+endif
+
+ifeq ($(CONFIG_HTTPS),y)
+	C_SRCS_FRAMEWORK += framework/gwhf/ssl.c
+	override LDLIBS += -lssl -lcrypto
+	override CFLAGS += -DCONFIG_HTTPS
+	override CXXFLAGS += -DCONFIG_HTTPS
 endif
 
 C_SRCS_APP := app/main.c

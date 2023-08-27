@@ -16,6 +16,10 @@
 #include "./route.h"
 #include "./http/request.h"
 
+#ifdef CONFIG_HTTPS
+#include "./ssl.h"
+#endif
+
 #if defined(__linux__)
 #include "./os/linux/signal.h"
 #endif
@@ -54,6 +58,10 @@ struct gwhf_internal {
 	struct gwhf_sock	tcp;
 	uint32_t		nr_workers;
 	struct gwhf_worker	*workers;
+
+#ifdef CONFIG_HTTPS
+	SSL_CTX			*ssl_ctx;
+#endif
 
 	struct gwhf_route	*routes_on_header;
 	struct gwhf_route	*routes_on_body;

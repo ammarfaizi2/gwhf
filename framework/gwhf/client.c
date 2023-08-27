@@ -19,6 +19,13 @@ static void init_client_first(struct gwhf_client *cl)
 #else
 	cl->fd.fd = -1;
 #endif
+
+#ifdef CONFIG_HTTPS
+	cl->ssl = NULL;
+	cl->rbio = NULL;
+	cl->wbio = NULL;
+	cl->https_state = GWHF_CL_HTTPS_UNSET;
+#endif
 }
 
 static void reset_client(struct gwhf_client *cl)
@@ -27,6 +34,9 @@ static void reset_client(struct gwhf_client *cl)
 	gwhf_buf_destroy(&cl->raw_recv_buf);
 	gwhf_buf_destroy(&cl->raw_send_buf);
 	gwhf_stream_destroy_all(cl);
+#ifdef CONFIG_HTTPS
+	gwhf_ssl_destroy_client(cl);
+#endif
 	cl->pollout_set = false;
 }
 
@@ -96,7 +106,14 @@ struct gwhf_client *gwhf_client_get(struct gwhf_client_slot *cs)
 	if (unlikely(ret))
 		goto out_send_buf;
 
+#ifdef CONFIG_HTTPS
+	assert(!cl->ssl);
+	assert(!cl->rbio);
+	assert(!cl->wbio);
+#endif
+
 	return cl;
+
 
 out_send_buf:
 	gwhf_buf_destroy(&cl->raw_send_buf);

@@ -90,8 +90,11 @@ int main(void)
 		return 1;
 	}
 
+	memset(&init, 0, sizeof(init));
 	init.bind_addr = "::";
 	init.bind_port = 7443;
+	init.ssl.cert_file = "./q.pem";
+	init.ssl.key_file = "./q.key";
 	ret = gwhf_init_arg(&ctx, &init);
 	if (ret != 0) {
 		gwhf_global_destroy();

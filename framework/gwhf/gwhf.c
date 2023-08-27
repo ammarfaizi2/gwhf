@@ -253,9 +253,19 @@ static int init_internal_state(struct gwhf *ctx)
 	if (ret)
 		goto out_ctxi;
 
-	ret = init_socket(ctx);
+#ifdef CONFIG_HTTPS
+	ret = gwhf_ssl_init(ctx);
 	if (ret)
 		goto out_signal;
+#endif
+
+	ret = init_socket(ctx);
+	if (ret)
+#ifdef CONFIG_HTTPS
+		goto out_ssl;
+#else
+		goto out_signal;
+#endif
 
 	ret = init_workers(ctx);
 	if (ret)
@@ -265,6 +275,10 @@ static int init_internal_state(struct gwhf *ctx)
 
 out_socket:
 	destroy_socket(ctx);
+#ifdef CONFIG_HTTPS
+out_ssl:
+	gwhf_ssl_destroy(ctx);
+#endif
 out_signal:
 	gwhf_signal_revert_sig_handler(ctx);
 out_ctxi:
@@ -287,6 +301,9 @@ static void destroy_internal_state(struct gwhf *ctx)
 	destroy_workers(ctx);
 	destroy_socket(ctx);
 	gwhf_route_destroy(ctx);
+#ifdef CONFIG_HTTPS
+	gwhf_ssl_destroy(ctx);
+#endif
 	free(ctxi);
 	memset(ctx, 0, sizeof(*ctx));
 }

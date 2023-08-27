@@ -191,6 +191,12 @@ enum {
 	TCL_CLOSE         = 8,
 };
 
+enum {
+	GWHF_CL_HTTPS_UNSET = 0,
+	GWHF_CL_HTTPS_ON    = 1,
+	GWHF_CL_HTTPS_OFF   = 2
+};
+
 struct gwhf_client_stream {
 	/*
 	 * Request buffer received from the client.
@@ -241,6 +247,11 @@ struct gwhf_client {
 	struct gwhf_buf			raw_recv_buf;
 	struct gwhf_buf			raw_send_buf;
 
+#ifdef CONFIG_HTTPS
+	SSL				*ssl;
+	BIO				*rbio, *wbio;
+#endif
+
 	/*
 	 * Internal data.
 	 */
@@ -265,6 +276,10 @@ struct gwhf_client {
 	 * Is the pollout set?
 	 */
 	bool				pollout_set;
+
+#ifdef CONFIG_HTTPS
+	uint8_t				https_state;
+#endif
 };
 
 static inline struct gwhf_client_stream *

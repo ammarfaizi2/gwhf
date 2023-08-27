@@ -32,6 +32,11 @@ struct gwhf_init_arg_ev_epoll {
 	int		timeout;
 };
 
+struct gwhf_init_arg_ssl {
+	const char	*cert_file;
+	const char	*key_file;
+};
+
 struct gwhf_init_arg {
 	const char	*bind_addr;
 	uint32_t	nr_workers;
@@ -43,6 +48,8 @@ struct gwhf_init_arg {
 	union {
 		struct gwhf_init_arg_ev_epoll	ev_epoll;
 	};
+
+	struct gwhf_init_arg_ssl	ssl;
 };
 
 struct gwhf_internal;
