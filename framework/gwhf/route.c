@@ -157,6 +157,7 @@ int gwhf_route_add_on_header(struct gwhf *ctx, gwhf_route_cb cb,
 static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 {
 	struct gwhf_client_stream *str = gwhf_client_get_cur_stream(cl);
+	struct gwhf_buf *rsb = &cl->raw_send_buf;
 	struct gwhf_http_res *res = &str->res;
 	size_t len;
 	char *buf;
@@ -174,10 +175,42 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 	if (ret)
 		return ret;
 
-	ret = gwhf_buf_append(&cl->raw_send_buf, buf, len);
+#ifdef CONFIG_HTTPS
+	if (cl->https_state == GWHF_CL_HTTPS_ON) {
+		size_t target_len;
+		ret = SSL_write(cl->ssl, buf, len);
+		free(buf);
+		if (ret <= 0)
+			return -EIO;
+
+		target_len = rsb->len + len + (ret * 2);
+
+		do {
+			ret = gwhf_buf_realloc_if_needed(rsb, target_len);
+			if (ret)
+				return ret;
+
+			errno = 0;
+			ret = BIO_read(cl->wbio, rsb->buf + rsb->len,
+				       rsb->alloc - rsb->len);
+			if (ret <= 0)
+				return -EIO;
+
+			rsb->len += ret;
+			target_len += 1024;
+		} while (SSL_pending(cl->ssl) == 1);
+	} else {
+		ret = gwhf_buf_append(rsb, buf, len);
+		free(buf);
+		if (ret)
+			return ret;
+	}
+#else /* #ifdef CONFIG_HTTPS */
+	ret = gwhf_buf_append(rsbf, buf, len);
 	free(buf);
 	if (ret)
 		return ret;
+#endif
 
 	str->state = TCL_SEND_HEADER;
 	return 0;

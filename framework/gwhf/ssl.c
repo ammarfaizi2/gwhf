@@ -62,6 +62,8 @@ int gwhf_ssl_init_client(struct gwhf *ctx, struct gwhf_client *cl)
 	SSL_set_bio(ssl, rbio, wbio);
 	SSL_set_accept_state(ssl);
 	cl->ssl = ssl;
+	cl->rbio = rbio;
+	cl->wbio = wbio;
 
 	return 0;
 
