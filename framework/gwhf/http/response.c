@@ -180,7 +180,7 @@ int gwhf_http_res_add_hdr(struct gwhf_http_res *res, const char *key,
 	if (unlikely(!kkey))
 		return -ENOMEM;
 
-	memcpy(kkey, key, add);
+	memcpy(kkey, key, add + 1);
 	va_start(ap, vfmt);
 	ret = gwhf_vasprintf(&vval, vfmt, ap);
 	va_end(ap);
