@@ -11,6 +11,61 @@
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
 
+static int translate_wsa_error(int err)
+{
+	switch (err) {
+	case WSAEWOULDBLOCK:
+		return -EAGAIN;
+	case WSAECONNRESET:
+		return -ECONNRESET;
+	case WSAECONNREFUSED:
+		return -ECONNREFUSED;
+	case WSAECONNABORTED:
+		return -ECONNABORTED;
+	case WSAETIMEDOUT:
+		return -ETIMEDOUT;
+	case WSAENETUNREACH:
+		return -ENETUNREACH;
+	case WSAEHOSTUNREACH:
+		return -EHOSTUNREACH;
+	case WSAENETRESET:
+		return -ENETRESET;
+	case WSAEADDRINUSE:
+		return -EADDRINUSE;
+	case WSAEADDRNOTAVAIL:
+		return -EADDRNOTAVAIL;
+	case WSAEINPROGRESS:
+		return -EINPROGRESS;
+	case WSAEINTR:
+		return -EINTR;
+	case WSAEISCONN:
+		return -EISCONN;
+	case WSAENOTCONN:
+		return -ENOTCONN;
+	case WSAEACCES:
+		return -EACCES;
+	case WSAEINVAL:
+		return -EINVAL;
+	case WSAEFAULT:
+		return -EFAULT;
+	case WSAEOPNOTSUPP:
+		return -EOPNOTSUPP;
+	default:
+		return -EIO;
+	}
+}
+
+int gwhf_sock_errno(void)
+{
+	return translate_wsa_error(WSAGetLastError());
+}
+
+int gwhf_sock_strerror(int err, char *buf, size_t len)
+{
+	return strerror_s(buf, len, err);
+
+}
+
 int gwhf_sock_global_init(void)
 {
 	WSADATA wsa_data;
@@ -34,7 +89,7 @@ int gwhf_sock_create(struct gwhf_sock *sk, int af, int type, int prot)
 
 	fd = socket(af, type, prot);
 	if (fd == INVALID_SOCKET)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	sk->fd = fd;
 	return 0;
@@ -47,7 +102,7 @@ int gwhf_sock_set_nonblock(struct gwhf_sock *sk)
 
 	ret = ioctlsocket(sk->fd, FIONBIO, &mode);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return 0;
 }
@@ -59,7 +114,7 @@ int gwhf_sock_bind(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 
 	ret = bind(sk->fd, (struct sockaddr *)sg, len);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return 0;
 }
@@ -76,7 +131,7 @@ int gwhf_sock_accept(struct gwhf_sock *ret, struct gwhf_sock *sk,
 
 	fd = accept(sk->fd, (struct sockaddr *)sg, len);
 	if (fd == INVALID_SOCKET)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	ret->fd = fd;
 	return 0;
@@ -89,7 +144,7 @@ int gwhf_sock_connect(struct gwhf_sock *sk, struct sockaddr_gwhf *dst,
 
 	ret = connect(sk->fd, (struct sockaddr *)dst, len);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return 0;
 }
@@ -103,7 +158,7 @@ int gwhf_sock_close(struct gwhf_sock *sk)
 
 	ret = closesocket(sk->fd);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	sk->fd = INVALID_SOCKET;
 	return 0;
@@ -115,7 +170,7 @@ int gwhf_sock_recv(struct gwhf_sock *sk, void *buf, size_t len, int flags)
 
 	ret = recv(sk->fd, buf, len, flags);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return ret;
 }
@@ -127,7 +182,7 @@ int gwhf_sock_send(struct gwhf_sock *sk, const void *buf, size_t len,
 
 	ret = send(sk->fd, buf, len, flags);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return ret;
 }
@@ -139,7 +194,7 @@ int gwhf_sock_getname(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 
 	ret = getsockname(sk->fd, (struct sockaddr *)sg, len);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return 0;
 }
@@ -151,7 +206,7 @@ int gwhf_sock_getpeername(struct gwhf_sock *sk, struct sockaddr_gwhf *sg,
 
 	ret = getpeername(sk->fd, (struct sockaddr *)sg, len);
 	if (ret == SOCKET_ERROR)
-		return WSAGetLastError();
+		return translate_wsa_error(WSAGetLastError());
 
 	return 0;
 }

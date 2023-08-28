@@ -57,10 +57,17 @@ static inline intptr_t GWHF_PTR_ERR(const void *ptr)
 	return (intptr_t)ptr;
 }
 
+#ifdef _WIN32
+static inline bool GWHF_IS_ERR(const void *ptr)
+{
+	return __builtin_expect((unsigned long long)ptr > (unsigned long long)-4096ull, 0);
+}
+#else
 static inline bool GWHF_IS_ERR(const void *ptr)
 {
 	return __builtin_expect((uintptr_t)ptr > (uintptr_t)-4096ul, 0);
 }
+#endif
 
 #ifdef __cplusplus
 } /* extern "C" */

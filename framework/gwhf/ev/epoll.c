@@ -190,14 +190,14 @@ static int create_event_fd(evfd_t *efd)
 		goto out_r;
 
 	err = gwhf_sock_connect(&r, &addr, len);
-	if (err < 0 && err != WSAEINPROGRESS)
+	if (err < 0 && (err != -EINPROGRESS && err != -EAGAIN))
 		goto out_r;
 
 	while (1) {
 		err = gwhf_sock_accept(&tmp, &w, NULL, NULL);
 		if (!err)
 			break;
-		if (err == WSAEWOULDBLOCK)
+		if (err == -EAGAIN)
 			continue;
 		goto out_r;
 	}
