@@ -326,7 +326,7 @@ int gwhf_init(struct gwhf *ctx)
 	return gwhf_init_arg(ctx, NULL);
 }
 
-__cold noinline
+__cold __noinline
 int gwhf_init_arg(struct gwhf *ctx, const struct gwhf_init_arg *arg)
 {
 	int ret;

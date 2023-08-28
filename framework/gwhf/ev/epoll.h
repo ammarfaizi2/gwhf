@@ -23,6 +23,7 @@ static inline int epoll_close(epoll_t epfd)
 }
 #elif defined(_WIN32) /* #if defined(__linux__) */
 #include "../ext/wepoll/wepoll.h"
+#include <gwhf/socket.h>
 typedef HANDLE epoll_t;
 typedef struct {
 	struct gwhf_sock write;

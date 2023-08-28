@@ -23,6 +23,10 @@
 #include <stddef.h>
 #include <errno.h>
 
+#ifdef _WIN32
+typedef long long ssize_t;
+#endif
+
 #ifdef CONFIG_HTTPS
 #include <openssl/ssl.h>
 #include <openssl/err.h>

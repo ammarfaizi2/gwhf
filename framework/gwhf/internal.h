@@ -24,6 +24,10 @@
 #include "./os/linux/signal.h"
 #endif
 
+#if defined(_WIN32)
+#include "./os/windows/signal.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

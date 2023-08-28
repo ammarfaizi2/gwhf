@@ -33,8 +33,8 @@
 #define __maybe_unused __attribute__((__unused__))
 #endif
 
-#ifndef noinline
-#define noinline __attribute__((__noinline__))
+#ifndef __noinline
+#define __noinline __attribute__((__noinline__))
 #endif
 
 #ifndef __always_inline

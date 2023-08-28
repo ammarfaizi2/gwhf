@@ -36,9 +36,9 @@ static void reset_client(struct gwhf_client *cl)
 	gwhf_stream_destroy_all(cl);
 #ifdef CONFIG_HTTPS
 	gwhf_ssl_destroy_client(cl);
+	cl->https_state = GWHF_CL_HTTPS_UNSET;
 #endif
 	cl->pollout_set = false;
-	cl->https_state = GWHF_CL_HTTPS_UNSET;
 }
 
 __cold

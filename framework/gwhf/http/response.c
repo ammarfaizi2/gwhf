@@ -401,10 +401,12 @@ static ssize_t copy_res_body(struct gwhf_http_res_body *body, void *buf,
 		len = (size_t)blen;
 
 	switch (body->type) {
+#ifndef _WIN32
 	case GWHF_HTTP_RES_BODY_FD_REF:
 	case GWHF_HTTP_RES_BODY_FD:
 		ret = pread64(body->fd.fd, buf, len, off);
 		break;
+#endif
 	case GWHF_HTTP_RES_BODY_BUF_REF:
 	case GWHF_HTTP_RES_BODY_BUF:
 		memcpy(buf, body->buf.buf + off, len);

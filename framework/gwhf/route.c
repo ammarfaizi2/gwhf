@@ -206,7 +206,7 @@ static int handle_route_executed(struct gwhf *ctx, struct gwhf_client *cl)
 			return ret;
 	}
 #else /* #ifdef CONFIG_HTTPS */
-	ret = gwhf_buf_append(rsbf, buf, len);
+	ret = gwhf_buf_append(rsb, buf, len);
 	free(buf);
 	if (ret)
 		return ret;

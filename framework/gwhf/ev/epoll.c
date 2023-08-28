@@ -99,7 +99,7 @@ static int close_event_fd(evfd_t *efd)
 	return close(*efd);
 }
 
-static epoll_t gwhf_epoll_create(epoll_t *ep_fd, int size)
+static int gwhf_epoll_create(epoll_t *ep_fd, int size)
 {
 	int ret;
 
@@ -221,7 +221,7 @@ static int close_event_fd(evfd_t *efd)
 	return 0;
 }
 
-static epoll_t gwhf_epoll_create(epoll_t *ep_fd, int size)
+static int gwhf_epoll_create(epoll_t *ep_fd, int size)
 {
 	*ep_fd = epoll_create(size);
 	return 0;
