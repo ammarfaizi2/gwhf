@@ -8,7 +8,7 @@ int gwhf_ssl_init(struct gwhf *ctx)
 	const char *cert = ssl_arg->cert_file;
 	const char *key = ssl_arg->key_file;
 	const SSL_METHOD *method;
-	SSL_CTX* ssl_ctx;
+	SSL_CTX *ssl_ctx;
 
 	SSL_library_init();
 	SSL_load_error_strings();
