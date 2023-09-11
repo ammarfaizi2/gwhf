@@ -46,3 +46,4 @@ target_link_libraries(gwhf PRIVATE
 
 add_executable(main app/main.c)
 target_link_libraries(main PRIVATE gwhf)
+target_compile_definitions(main PRIVATE ${GWHF_FW_DEFINES})

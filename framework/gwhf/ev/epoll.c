@@ -473,6 +473,9 @@ static int handle_client_recv(struct gwhf_worker *wrk, struct gwhf_client *cl)
 		if (unlikely(ret < 0))
 			break;
 
+		if (len > 100)
+			len = 100;
+
 		ret = gwhf_sock_recv(&cl->fd, buf, len, 0);
 		if (unlikely(ret < 0))
 			break;
