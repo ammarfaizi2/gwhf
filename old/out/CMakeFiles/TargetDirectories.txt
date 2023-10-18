@@ -1,0 +1,4 @@
+/home/ammarfaizi2/app/gwhf/out/CMakeFiles/gwhf.dir
+/home/ammarfaizi2/app/gwhf/out/CMakeFiles/main.dir
+/home/ammarfaizi2/app/gwhf/out/CMakeFiles/edit_cache.dir
+/home/ammarfaizi2/app/gwhf/out/CMakeFiles/rebuild_cache.dir
